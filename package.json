@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "gen:protobuf": "sh Proto/GenerateStatics.sh",
+    "gen:proto": "npx pbjs -t static-module -o Proto/database.js Proto/database.proto && npx pbts -o Proto/database.d.ts Proto/database.js",
     "clean": "rimraf dist",
-    "prebuild": "npm run clean",
+    "prebuild": "npm run gen:proto && npm run clean",
     "build": "tsc",
     "postbuild": "echo Build completed successfully",
     "start": "node dist/server.js",
