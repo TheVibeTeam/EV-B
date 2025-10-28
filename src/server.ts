@@ -28,7 +28,11 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_CLOUD_RUN = process.env.K_SERVICE !== undefined;
 
 const origins = IS_PRODUCTION
-    ? [process.env.FRONTEND_URL, process.env.CLOUD_RUN_URL].filter((o): o is string => Boolean(o))
+    ? [
+        process.env.FRONTEND_URL, 
+        process.env.CLOUD_RUN_URL,
+        /^https:\/\/.*\.run\.app$/  // Permitir cualquier dominio de Cloud Run
+    ].filter((o): o is string | RegExp => Boolean(o))
     : ["http://localhost:5173", /^http:\/\/localhost:\d+$/];
 
 const io = new SocketIOServer(server, {
@@ -40,14 +44,29 @@ const io = new SocketIOServer(server, {
 })
 
 const run = async () => {
-    await Promise.all([
-        MongoDB.init(),
+    // Inicializar servicios de forma resiliente
+    const initPromises: Promise<any>[] = [
         Storage.init(),
         SQLite.init({
             path: './Storage/database.db',
             needProfiling: true
         })
-    ]);
+    ];
+
+    // MongoDB es opcional - si falla, el servidor sigue funcionando
+    if (process.env.MONGODB_URL) {
+        initPromises.push(
+            MongoDB.init().catch(err => {
+                console.error('MongoDB connection failed:', err.message);
+                console.log('Server will continue without MongoDB');
+                return null;
+            })
+        );
+    } else {
+        console.log('MONGODB_URL not configured, skipping MongoDB initialization');
+    }
+
+    await Promise.all(initPromises);
 
     morgan.token('clientIp', (req) => (req as any).clientIp);
     app.set('json spaces', 2)
@@ -109,7 +128,7 @@ const run = async () => {
             name: '__session',
             resave: false,
             saveUninitialized: false,
-            store: IS_PRODUCTION ? MongoStore.create({
+            store: (IS_PRODUCTION && process.env.MONGODB_URL) ? MongoStore.create({
                 mongoUrl: process.env.MONGODB_URL,
                 dbName: process.env.MONGODB_DB_NAME || 'sessions',
                 collectionName: 'sessions',
@@ -123,7 +142,7 @@ const run = async () => {
                 httpOnly: true,
                 sameSite: IS_PRODUCTION ? 'none' : 'lax',
                 maxAge: 7 * 24 * 60 * 60 * 1000,
-                domain: IS_PRODUCTION ? process.env.COOKIE_DOMAIN : undefined,
+                domain: process.env.COOKIE_DOMAIN || undefined,
                 path: '/'
             }
         }))
