@@ -44,20 +44,31 @@ const io = new SocketIOServer(server, {
 })
 
 const run = async () => {
-    // Inicializar servicios de forma resiliente
     const initPromises: Promise<any>[] = [
-        Storage.init(),
-        SQLite.init({
-            path: './Storage/database.db',
-            needProfiling: true
+        Storage.init().catch(err => {
+            console.error('Storage initialization failed:', err?.message || err);
+            console.log('Server will continue without local storage');
+            return null;
         })
     ];
 
-    // MongoDB es opcional - si falla, el servidor sigue funcionando
+    // SQLite is optional
+    initPromises.push(
+        SQLite.init({
+            path: './Storage/database.db',
+            needProfiling: true
+        }).catch(err => {
+            console.error('SQLite initialization failed:', err?.message || err);
+            console.log('Server will continue without SQLite');
+            return null;
+        })
+    );
+
+    // MongoDB is optional
     if (process.env.MONGODB_URL) {
         initPromises.push(
             MongoDB.init().catch(err => {
-                console.error('MongoDB connection failed:', err.message);
+                console.error('MongoDB connection failed:', err?.message || err);
                 console.log('Server will continue without MongoDB');
                 return null;
             })
@@ -170,7 +181,6 @@ const run = async () => {
             });
         })
         .use('/uploads', express.static(path.join(__dirname, '../Storage/uploads')))
-        .use('/', (await Create.routes()) ?? express.Router())
         .use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
             console.error('Error:', err);
             res.status(err.status || 500).json({
@@ -178,7 +188,32 @@ const run = async () => {
                 msg: IS_PRODUCTION ? 'Error en el servidor' : err.message
             });
         });
-    await Create.sockets(io)
+
+    // Load routes safely - don't let route loading failures prevent startup
+    try {
+        const routes = await Create.routes();
+        if (routes) {
+            app.use('/', routes);
+        } else {
+            console.warn('Routes are undefined, using empty router');
+            app.use('/', express.Router());
+        }
+    } catch (err: any) {
+        console.error('Failed to load routes:', err?.message || err);
+        console.log('Server will continue without routes');
+        app.use('/', express.Router());
+    }
+
+    // Load sockets safely - don't let socket loading failures prevent startup
+    try {
+        await Create.sockets(io);
+        console.log('Sockets loaded successfully');
+    } catch (err: any) {
+        console.error('Failed to load sockets:', err?.message || err);
+        console.log('Server will continue without real-time features');
+    }
+
+    // Start server
     server.listen(PORT, () => {
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {
@@ -197,7 +232,9 @@ const run = async () => {
     });
 }
 
+// Start server with comprehensive error handling
 run().catch((err) => {
-    console.error('Error al iniciar el servidor:', err);
+    console.error('Critical error during startup:', err);
+    console.error('Stack:', err?.stack);
     process.exit(1);
 });
