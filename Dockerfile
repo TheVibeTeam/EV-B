@@ -28,8 +28,9 @@ COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 
 COPY --from=builder --chown=app:app /app/dist ./dist
 
+COPY --from=builder --chown=app:app /app/Proto ./Proto
+
 COPY --chown=app:app package*.json ./
-COPY --chown=app:app Proto ./Proto
 
 RUN mkdir -p Storage/uploads/images Storage/uploads/videos Storage/uploads/documents && \
     chown -R app:app /app
