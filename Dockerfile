@@ -3,12 +3,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+COPY tsconfig.json ./
 
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm install
 
 COPY . .
-
-RUN npm install --only=development
 
 RUN npm run build
 
