@@ -153,7 +153,7 @@ const run = async () => {
             });
         });
     await Create.sockets(io)
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0' as any, () => {
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {
                 font: 'tiny',
