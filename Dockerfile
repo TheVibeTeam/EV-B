@@ -31,6 +31,10 @@ COPY --from=builder --chown=app:app /app/dist ./dist
 COPY --chown=app:app package*.json ./
 COPY --chown=app:app Proto ./Proto
 
+# Ensure runtime directories are writable by the non-root user
+RUN mkdir -p Storage/uploads/images Storage/uploads/videos Storage/uploads/documents && \
+    chown -R app:app /app
+
 USER app
 
 EXPOSE 8080
