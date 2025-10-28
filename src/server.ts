@@ -68,6 +68,24 @@ const run = async () => {
 
     await Promise.all(initPromises);
 
+    let sessionStore: session.Store | undefined;
+    if (IS_PRODUCTION && process.env.MONGODB_URL) {
+        try {
+            sessionStore = MongoStore.create({
+                mongoUrl: process.env.MONGODB_URL,
+                dbName: process.env.MONGODB_DB_NAME || 'sessions',
+                collectionName: 'sessions',
+                ttl: 7 * 24 * 60 * 60,
+                autoRemove: 'native',
+                touchAfter: 24 * 3600
+            });
+        } catch (err: any) {
+            console.error('Mongo session store failed:', err?.message || err);
+            console.log('Falling back to in-memory session store');
+            sessionStore = undefined;
+        }
+    }
+
     morgan.token('clientIp', (req) => (req as any).clientIp);
     app.set('json spaces', 2)
         .disable('x-powered-by')
@@ -128,14 +146,7 @@ const run = async () => {
             name: '__session',
             resave: false,
             saveUninitialized: false,
-            store: (IS_PRODUCTION && process.env.MONGODB_URL) ? MongoStore.create({
-                mongoUrl: process.env.MONGODB_URL,
-                dbName: process.env.MONGODB_DB_NAME || 'sessions',
-                collectionName: 'sessions',
-                ttl: 7 * 24 * 60 * 60,
-                autoRemove: 'native',
-                touchAfter: 24 * 3600
-            }) : undefined,
+            store: sessionStore,
             proxy: true,
             cookie: {
                 secure: IS_PRODUCTION,
