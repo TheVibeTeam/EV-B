@@ -44,58 +44,14 @@ const io = new SocketIOServer(server, {
 })
 
 const run = async () => {
-    const initPromises: Promise<any>[] = [
-        Storage.init().catch(err => {
-            console.error('Storage initialization failed:', err?.message || err);
-            console.log('Server will continue without local storage');
-            return null;
-        })
-    ];
-
-    // SQLite is optional
-    initPromises.push(
+    await Promise.all([
+        MongoDB.init(),
+        Storage.init(),
         SQLite.init({
             path: './Storage/database.db',
             needProfiling: true
-        }).catch(err => {
-            console.error('SQLite initialization failed:', err?.message || err);
-            console.log('Server will continue without SQLite');
-            return null;
         })
-    );
-
-    // MongoDB is optional
-    if (process.env.MONGODB_URL) {
-        initPromises.push(
-            MongoDB.init().catch(err => {
-                console.error('MongoDB connection failed:', err?.message || err);
-                console.log('Server will continue without MongoDB');
-                return null;
-            })
-        );
-    } else {
-        console.log('MONGODB_URL not configured, skipping MongoDB initialization');
-    }
-
-    await Promise.all(initPromises);
-
-    let sessionStore: session.Store | undefined;
-    if (IS_PRODUCTION && process.env.MONGODB_URL) {
-        try {
-            sessionStore = MongoStore.create({
-                mongoUrl: process.env.MONGODB_URL,
-                dbName: process.env.MONGODB_DB_NAME || 'sessions',
-                collectionName: 'sessions',
-                ttl: 7 * 24 * 60 * 60,
-                autoRemove: 'native',
-                touchAfter: 24 * 3600
-            });
-        } catch (err: any) {
-            console.error('Mongo session store failed:', err?.message || err);
-            console.log('Falling back to in-memory session store');
-            sessionStore = undefined;
-        }
-    }
+    ]);
 
     morgan.token('clientIp', (req) => (req as any).clientIp);
     app.set('json spaces', 2)
@@ -157,7 +113,14 @@ const run = async () => {
             name: '__session',
             resave: false,
             saveUninitialized: false,
-            store: sessionStore,
+            store: IS_PRODUCTION ? MongoStore.create({
+                mongoUrl: process.env.MONGODB_URL,
+                dbName: process.env.MONGODB_DB_NAME || 'sessions',
+                collectionName: 'sessions',
+                ttl: 7 * 24 * 60 * 60,
+                autoRemove: 'native',
+                touchAfter: 24 * 3600
+            }) : undefined,
             proxy: true,
             cookie: {
                 secure: IS_PRODUCTION,
@@ -181,6 +144,7 @@ const run = async () => {
             });
         })
         .use('/uploads', express.static(path.join(__dirname, '../Storage/uploads')))
+        .use('/', (await Create.routes()) ?? express.Router())
         .use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
             console.error('Error:', err);
             res.status(err.status || 500).json({
@@ -188,32 +152,7 @@ const run = async () => {
                 msg: IS_PRODUCTION ? 'Error en el servidor' : err.message
             });
         });
-
-    // Load routes safely - don't let route loading failures prevent startup
-    try {
-        const routes = await Create.routes();
-        if (routes) {
-            app.use('/', routes);
-        } else {
-            console.warn('Routes are undefined, using empty router');
-            app.use('/', express.Router());
-        }
-    } catch (err: any) {
-        console.error('Failed to load routes:', err?.message || err);
-        console.log('Server will continue without routes');
-        app.use('/', express.Router());
-    }
-
-    // Load sockets safely - don't let socket loading failures prevent startup
-    try {
-        await Create.sockets(io);
-        console.log('Sockets loaded successfully');
-    } catch (err: any) {
-        console.error('Failed to load sockets:', err?.message || err);
-        console.log('Server will continue without real-time features');
-    }
-
-    // Start server
+    await Create.sockets(io)
     server.listen(PORT, () => {
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {
@@ -232,9 +171,7 @@ const run = async () => {
     });
 }
 
-// Start server with comprehensive error handling
 run().catch((err) => {
-    console.error('Critical error during startup:', err);
-    console.error('Stack:', err?.stack);
+    console.error('Error al iniciar el servidor:', err);
     process.exit(1);
 });
