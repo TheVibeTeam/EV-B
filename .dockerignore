@@ -11,8 +11,6 @@ dist
 build
 *.tsbuildinfo
 
-src
-tsconfig.json
 *.spec.ts
 *.test.ts
 
