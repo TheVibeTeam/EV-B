@@ -1,5 +1,4 @@
 steps:
-  # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'build'
@@ -9,13 +8,11 @@ steps:
       - 'gcr.io/$PROJECT_ID/auralix-api:latest'
       - '.'
 
-  # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'push'
       - 'gcr.io/$PROJECT_ID/auralix-api:$COMMIT_SHA'
 
-  # Create GCS bucket if it doesn't exist
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: bash
     args:
@@ -31,7 +28,6 @@ steps:
           --member=allUsers \
           --role=roles/storage.objectViewer
 
-  # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: gcloud
     args:
