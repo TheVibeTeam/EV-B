@@ -53,14 +53,6 @@ export default class Storage {
             if (IS_PRODUCTION || IS_CLOUD_RUN) {
                 gcsStorage = new GCStorage({ projectId: GCS_PROJECT_ID });
                 gcsBucket = gcsStorage.bucket(GCS_BUCKET_NAME);
-                
-                const [exists] = await gcsBucket.exists();
-                if (!exists) {
-                    await gcsStorage.createBucket(GCS_BUCKET_NAME, {
-                        location: 'US',
-                        storageClass: 'STANDARD'
-                    });
-                }
                 logger.info(`GCS initialized: ${GCS_BUCKET_NAME}`);
             } else {
                 await Promise.all(
@@ -71,7 +63,7 @@ export default class Storage {
             }
         } catch (error) {
             logger.error('Storage init failed:', error);
-            throw error;
+            if (!IS_PRODUCTION && !IS_CLOUD_RUN) throw error;
         }
     }
 

@@ -15,6 +15,22 @@ steps:
       - 'push'
       - 'gcr.io/$PROJECT_ID/auralix-api:$COMMIT_SHA'
 
+  # Create GCS bucket if it doesn't exist
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        gcloud storage buckets describe gs://auralix-uploads --project=$PROJECT_ID || \
+        gcloud storage buckets create gs://auralix-uploads \
+          --project=$PROJECT_ID \
+          --location=us-central1 \
+          --default-storage-class=STANDARD \
+          --uniform-bucket-level-access && \
+        gcloud storage buckets add-iam-policy-binding gs://auralix-uploads \
+          --member=allUsers \
+          --role=roles/storage.objectViewer
+
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: gcloud
