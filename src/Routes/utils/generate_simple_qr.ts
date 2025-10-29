@@ -22,20 +22,18 @@ export default {
             }
         ]
     },
-    parameter: ['bottles'],
+    parameter: ['bottles', 'secretKey'],
     premium: false,
     error: false,
     logger: true,
     requires: (req: Request, res: Response, next: Function) => {
-        const { bottles } = req.body;
-        
+        const { bottles, secretKey } = req.body;
         if (!bottles || !Array.isArray(bottles) || bottles.length === 0) {
             return res.status(400).json({ 
                 status: false, 
                 msg: 'bottles (array) es requerido' 
             });
         }
-
         for (const bottle of bottles) {
             if (!bottle.barcode || !bottle.productName || !bottle.brand || !bottle.quantity) {
                 return res.status(400).json({
@@ -44,12 +42,17 @@ export default {
                 });
             }
         }
-        
+        if (!secretKey || typeof secretKey !== 'string') {
+            return res.status(400).json({
+                status: false,
+                msg: 'secretKey es requerido y debe ser string'
+            });
+        }
         next();
     },
     execution: async (req: Request, res: Response) => {
         try {
-            const { bottles } = req.body;
+            const { bottles, secretKey } = req.body;
             const points = 10;
             const data = {
                 type: 'earthvibe_bottle',
@@ -65,16 +68,19 @@ export default {
 
             const json = JSON.stringify(data);
 
-            // --- Encriptar el JSON ---
             const crypto = require('crypto');
-            const SECRET_KEY = process.env.SECRET_KEY || 'EVTEAM-qr-demo-key-32bytes!!';
-            const key = Buffer.from(SECRET_KEY, 'utf8');
+            let keyStr = secretKey;
+            if (keyStr.length < 32) {
+                keyStr = keyStr.padEnd(32, '0');
+            } else if (keyStr.length > 32) {
+                keyStr = keyStr.slice(0, 32);
+            }
+            const key = Buffer.from(keyStr, 'utf8');
             const iv = crypto.randomBytes(12);
             const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
             let encrypted = cipher.update(json, 'utf8', 'base64');
             encrypted += cipher.final('base64');
             const authTag = cipher.getAuthTag().toString('base64');
-            // Formato: EVTEAM:iv:authTag:encrypted
             const qrString = `EVTEAM:${iv.toString('base64')}:${authTag}:${encrypted}`;
 
             const buffer = await QRCode.toBuffer(qrString, {
