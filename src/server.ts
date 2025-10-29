@@ -31,7 +31,8 @@ const origins = IS_PRODUCTION
     ? [
         process.env.FRONTEND_URL, 
         process.env.CLOUD_RUN_URL,
-        /^https:\/\/.*\.run\.app$/  // Permitir cualquier dominio de Cloud Run
+        /^https:\/\/.*\.run\.app$/,
+        /^http:\/\/localhost:\d+$/
     ].filter((o): o is string | RegExp => Boolean(o))
     : ["http://localhost:5173", /^http:\/\/localhost:\d+$/];
 
@@ -44,22 +45,12 @@ const io = new SocketIOServer(server, {
 })
 
 const run = async () => {
-    // Initialize services without blocking server startup
-    Promise.all([
-        MongoDB.init().catch((err) => {
-            console.error('⚠️ MongoDB initialization failed:', err.message);
-            if (!IS_PRODUCTION) throw err; // Fail in dev mode
-        }),
-        Storage.init().catch((err) => {
-            console.error('⚠️ Storage initialization failed:', err.message);
-            if (!IS_PRODUCTION) throw err;
-        }),
+    await Promise.all([
+        MongoDB.init(),
+        Storage.init(),
         SQLite.init({
             path: './Storage/database.db',
             needProfiling: true
-        }).catch((err) => {
-            console.error('⚠️ SQLite initialization failed:', err.message);
-            if (!IS_PRODUCTION) throw err;
         })
     ]);
 
@@ -162,42 +153,26 @@ const run = async () => {
                 msg: IS_PRODUCTION ? 'Error en el servidor' : err.message
             });
         });
-    
-    // Start server FIRST, then initialize sockets
-    // This ensures Cloud Run's health check can connect immediately
+    await Create.sockets(io)
     server.listen(PORT, '0.0.0.0' as any, () => {
-        console.log(`✅ Server listening on port ${PORT} in ${IS_CLOUD_RUN ? 'Cloud Run' : IS_PRODUCTION ? 'production' : 'development'} mode`);
-        
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {
                 font: 'tiny',
                 align: 'center',
                 colors: ['system']
             });
-            CFonts.say(`Server listening on port ---> ${PORT}`, {
+            CFonts.say(`MongoDB, SQLite & Storage connected\nServer listening on port ---> ${PORT}`, {
                 font: 'console',
                 align: 'center',
                 colors: ['system']
             });
+        } else {
+            console.log(`Server running on port ${PORT} in ${IS_CLOUD_RUN ? 'Cloud Run' : 'production'} mode`);
         }
     });
-
-    // Initialize sockets after server is listening
-    try {
-        await Create.sockets(io);
-        console.log('✅ Socket.IO initialized');
-    } catch (err) {
-        console.error('⚠️ Socket.IO initialization failed:', err);
-        if (!IS_PRODUCTION) throw err;
-    }
 }
 
 run().catch((err) => {
-    console.error('❌ Fatal error starting server:', err);
-    if (!IS_PRODUCTION) {
-        process.exit(1);
-    } else {
-        // In production (Cloud Run), keep running despite errors
-        console.error('Continuing despite error (production mode)');
-    }
+    console.error('Error al iniciar el servidor:', err);
+    process.exit(1);
 });
