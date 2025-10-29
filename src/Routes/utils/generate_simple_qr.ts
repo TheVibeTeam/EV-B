@@ -1,0 +1,97 @@
+import type { Request, Response } from 'express';
+import QRCode from 'qrcode';
+
+export default {
+    name: 'Generate Bottle QR',
+    path: '/utils/qr/generate-simple',
+    method: 'post',
+    category: 'utils',
+    example: { 
+        bottles: [
+            {
+                barcode: '7501055363322',
+                productName: 'Agua Cielo',
+                brand: 'Aje',
+                quantity: '500ml'
+            },
+            {
+                barcode: '7501055363323',
+                productName: 'Coca-Cola',
+                brand: 'Coca-Cola Company',
+                quantity: '600ml'
+            }
+        ]
+    },
+    parameter: ['bottles'],
+    premium: false,
+    error: false,
+    logger: true,
+    requires: (req: Request, res: Response, next: Function) => {
+        const { bottles } = req.body;
+        
+        if (!bottles || !Array.isArray(bottles) || bottles.length === 0) {
+            return res.status(400).json({ 
+                status: false, 
+                msg: 'bottles (array) es requerido' 
+            });
+        }
+
+        for (const bottle of bottles) {
+            if (!bottle.barcode || !bottle.productName || !bottle.brand || !bottle.quantity) {
+                return res.status(400).json({
+                    status: false,
+                    msg: 'Cada botella debe tener: barcode, productName, brand, quantity'
+                });
+            }
+        }
+        
+        next();
+    },
+    execution: async (req: Request, res: Response) => {
+        try {
+            const { bottles } = req.body;
+            const points = 10;
+            const data = {
+                type: 'earthvibe_bottle',
+                version: '1.0',
+                bottles: bottles.map((bottle: any) => ({
+                    barcode: bottle.barcode,
+                    productName: bottle.productName,
+                    brand: bottle.brand,
+                    quantity: bottle.quantity,
+                    points
+                }))
+            };
+
+            const json = JSON.stringify(data);
+
+            // --- Encriptar el JSON ---
+            const crypto = require('crypto');
+            const SECRET_KEY = process.env.SECRET_KEY || 'EVTEAM-qr-demo-key-32bytes!!';
+            const key = Buffer.from(SECRET_KEY, 'utf8');
+            const iv = crypto.randomBytes(12);
+            const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+            let encrypted = cipher.update(json, 'utf8', 'base64');
+            encrypted += cipher.final('base64');
+            const authTag = cipher.getAuthTag().toString('base64');
+            // Formato: EVTEAM:iv:authTag:encrypted
+            const qrString = `EVTEAM:${iv.toString('base64')}:${authTag}:${encrypted}`;
+
+            const buffer = await QRCode.toBuffer(qrString, {
+                errorCorrectionLevel: 'M',
+                type: 'png',
+                width: 300,
+                margin: 1
+            });
+
+            res.setHeader('Content-Type', 'image/png');
+            res.send(buffer);
+        } catch (error: any) {
+            res.status(500).json({
+                status: false,
+                msg: 'Error al generar QR',
+                error: error.message
+            });
+        }
+    }
+};
