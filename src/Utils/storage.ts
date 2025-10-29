@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { promisify } from 'util';
+import { Storage as GCStorage } from '@google-cloud/storage';
 import logger from './logger';
 
 const writeFile = promisify(fs.writeFile);
@@ -14,6 +15,15 @@ const STORAGE_DIR = path.join(process.cwd(), 'Storage');
 const UPLOADS_DIR = path.join(STORAGE_DIR, 'uploads');
 const ABSOLUTE_STORAGE_DIR = path.resolve(STORAGE_DIR);
 const CATEGORIES = ['images', 'videos', 'documents'];
+
+// Google Cloud Storage config
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const IS_CLOUD_RUN = process.env.K_SERVICE !== undefined;
+const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || 'auralix-uploads';
+const GCS_PROJECT_ID = process.env.GCP_PROJECT_ID || 'pro-platform-470721-v2';
+
+let gcsStorage: GCStorage | null = null;
+let gcsBucket: any = null;
 
 interface UploadOptions {
     userId: string;
@@ -39,28 +49,49 @@ interface StorageStats {
 
 /**
  * @class StorageService
- * @summary Gestiona el almacenamiento de archivos en el sistema de ficheros local.
- * Proporciona métodos para subir, eliminar y consultar archivos.
+ * @summary Gestiona el almacenamiento de archivos usando Google Cloud Storage en producción
+ * y filesystem local en desarrollo.
  */
 export default class Storage {
 
     /**
-     * @summary Asegura que todos los directorios de almacenamiento existan.
-     * Se ejecuta en paralelo.
+     * @summary Inicializa el storage (GCS en producción, filesystem en desarrollo).
      */
     static async init(): Promise<void> {
         try {
-            const dirsToCreate = [
-                STORAGE_DIR,
-                UPLOADS_DIR,
-                ...CATEGORIES.map(cat => path.join(UPLOADS_DIR, cat))
-            ];
-            
-            await Promise.all(
-                dirsToCreate.map(dir => mkdir(dir, { recursive: true }))
-            );
-            
-            logger.info('Storage directories initialized');
+            if (IS_PRODUCTION || IS_CLOUD_RUN) {
+                // Inicializar Google Cloud Storage
+                gcsStorage = new GCStorage({
+                    projectId: GCS_PROJECT_ID
+                });
+                gcsBucket = gcsStorage.bucket(GCS_BUCKET_NAME);
+                
+                // Verificar que el bucket existe
+                const [exists] = await gcsBucket.exists();
+                if (!exists) {
+                    logger.warn(`GCS bucket ${GCS_BUCKET_NAME} does not exist, creating...`);
+                    await gcsStorage.createBucket(GCS_BUCKET_NAME, {
+                        location: 'US',
+                        storageClass: 'STANDARD'
+                    });
+                    logger.info(`GCS bucket ${GCS_BUCKET_NAME} created`);
+                }
+                
+                logger.info(`Google Cloud Storage initialized with bucket: ${GCS_BUCKET_NAME}`);
+            } else {
+                // Desarrollo: usar filesystem local
+                const dirsToCreate = [
+                    STORAGE_DIR,
+                    UPLOADS_DIR,
+                    ...CATEGORIES.map(cat => path.join(UPLOADS_DIR, cat))
+                ];
+                
+                await Promise.all(
+                    dirsToCreate.map(dir => mkdir(dir, { recursive: true }))
+                );
+                
+                logger.info('Local storage directories initialized');
+            }
         } catch (error) {
             logger.error('Failed to initialize storage:', error);
             throw error;
@@ -68,7 +99,7 @@ export default class Storage {
     }
 
     /**
-     * @summary Guarda un buffer en el disco.
+     * @summary Guarda un buffer usando GCS en producción o filesystem en desarrollo.
      * @private
      */
     private static async _saveFile(
@@ -78,14 +109,39 @@ export default class Storage {
         extension: string
     ): Promise<UploadResponse> {
         const filename = `${userId}_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
-        const categoryDir = path.join(UPLOADS_DIR, category);
-        const filePath = path.join(categoryDir, filename);
+        const filePath = `${category}/${filename}`;
 
-        await writeFile(filePath, buffer);
+        if (IS_PRODUCTION || IS_CLOUD_RUN) {
+            // Subir a Google Cloud Storage
+            if (!gcsBucket) {
+                throw new Error('GCS bucket not initialized');
+            }
 
-        const url = `/uploads/${category}/${filename}`;
-        logger.info(`File uploaded: ${url}`);
-        return { url, filename, path: filePath };
+            const file = gcsBucket.file(filePath);
+            await file.save(buffer, {
+                metadata: {
+                    contentType: this.getMimeType(extension),
+                    cacheControl: 'public, max-age=31536000'
+                }
+            });
+
+            // Hacer el archivo público
+            await file.makePublic();
+
+            const url = `https://storage.googleapis.com/${GCS_BUCKET_NAME}/${filePath}`;
+            logger.info(`File uploaded to GCS: ${url}`);
+            return { url, filename, path: filePath };
+        } else {
+            // Desarrollo: guardar en filesystem local
+            const categoryDir = path.join(UPLOADS_DIR, category);
+            const localFilePath = path.join(categoryDir, filename);
+
+            await writeFile(localFilePath, buffer);
+
+            const url = `/uploads/${category}/${filename}`;
+            logger.info(`File uploaded locally: ${url}`);
+            return { url, filename, path: localFilePath };
+        }
     }
 
     /**
@@ -131,19 +187,34 @@ export default class Storage {
     }
 
     /**
-     * @summary Elimina un archivo del sistema.
-     * @param {string} fileUrl - La URL relativa del archivo a eliminar (ej. /uploads/images/file.jpg).
+     * @summary Elimina un archivo (GCS en producción, filesystem en desarrollo).
+     * @param {string} fileUrl - La URL del archivo a eliminar.
      * @returns {Promise<boolean>} True si se eliminó, false si no se encontró o hubo un error.
      */
     static async deleteFile(fileUrl: string): Promise<boolean> {
         try {
-            const filePath = this.getFilePath(fileUrl);
-            await unlink(filePath);
-            logger.info(`File deleted: ${fileUrl}`);
-            return true;
+            if (IS_PRODUCTION || IS_CLOUD_RUN) {
+                // Eliminar de GCS
+                if (!gcsBucket) {
+                    throw new Error('GCS bucket not initialized');
+                }
+
+                // Extraer el path del archivo de la URL de GCS
+                const gcsPath = fileUrl.replace(`https://storage.googleapis.com/${GCS_BUCKET_NAME}/`, '');
+                const file = gcsBucket.file(gcsPath);
+                await file.delete();
+                logger.info(`File deleted from GCS: ${gcsPath}`);
+                return true;
+            } else {
+                // Desarrollo: eliminar del filesystem local
+                const filePath = this.getFilePath(fileUrl);
+                await unlink(filePath);
+                logger.info(`File deleted locally: ${fileUrl}`);
+                return true;
+            }
         } catch (error: any) {
-            if (error.code === 'ENOENT' || error.message === 'Invalid file path') {
-                logger.warn(`File not found or invalid path, could not delete: ${fileUrl}`);
+            if (error.code === 'ENOENT' || error.code === 404 || error.message === 'Invalid file path') {
+                logger.warn(`File not found, could not delete: ${fileUrl}`);
             } else {
                 logger.error('Delete file error:', error);
             }
@@ -220,6 +291,27 @@ export default class Storage {
             logger.error('Get storage stats error:', error);
             return { totalFiles: 0, categories: {} };
         }
+    }
+
+    /**
+     * @summary Obtiene el MIME type de una extensión de archivo.
+     * @private
+     */
+    private static getMimeType(extension: string): string {
+        const mimeMap: Record<string, string> = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'ogg': 'video/ogg',
+            'pdf': 'application/pdf',
+            'txt': 'text/plain'
+        };
+
+        return mimeMap[extension.toLowerCase()] || 'application/octet-stream';
     }
 
     /**
