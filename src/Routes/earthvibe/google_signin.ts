@@ -15,7 +15,7 @@ export default {
     logger: true,
     execution: async (req: Request, res: Response) => {
         try {
-            const { email, name, googleId, profilePicture } = req.body;
+            const { email, name, googleId, profilePicture, idToken } = req.body;
 
             if (!email || !name || !googleId) {
                 return res.status(400).json({
@@ -24,7 +24,22 @@ export default {
                 });
             }
 
-            // Buscar usuario por email o por googleId
+            if (idToken) {
+                try {
+                    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+                    if (!verifyRes.ok) {
+                        return res.status(400).json({ status: false, msg: 'idToken inválido' });
+                    }
+                    const tokenInfo = await verifyRes.json();
+                    if (tokenInfo.email.toLowerCase() !== email.toLowerCase() || tokenInfo.sub !== googleId) {
+                        return res.status(400).json({ status: false, msg: 'idToken no coincide con el usuario proporcionado' });
+                    }
+                } catch (tokenErr) {
+                    console.error('Error verificando idToken:', tokenErr);
+                    return res.status(500).json({ status: false, msg: 'Error verificando idToken' });
+                }
+            }
+
             let user = await User.findOne({ 
                 $or: [
                     { email: email.toLowerCase() },
@@ -33,17 +48,13 @@ export default {
             });
 
             if (user) {
-                // Usuario existe, actualizar googleId si no lo tiene
                 if (!user.googleId) {
                     user.googleId = googleId;
                     await user.save();
                 }
             } else {
-                // Crear nuevo usuario
-                // Generar username único basado en el email
                 let username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
                 
-                // Verificar que el username sea único
                 let usernameExists = await User.findOne({ username });
                 let counter = 1;
                 while (usernameExists) {
@@ -52,7 +63,6 @@ export default {
                     counter++;
                 }
 
-                // Generar contraseña aleatoria (no se usará, pero es requerida)
                 const randomPassword = bcrypt.hashSync(Math.random().toString(36).slice(-8), 10);
 
                 user = new User({
@@ -64,14 +74,13 @@ export default {
                     profilePicture: profilePicture || undefined,
                     university: 'Por definir',
                     faculty: 'Por definir',
-                    verified: true, // Auto-verificar usuarios de Google
+                    verified: true,
                     role: 'user'
                 });
 
                 await user.save();
             }
 
-            // Generar token JWT
             const token = jwt.sign(
                 { 
                     id: user._id,
@@ -82,7 +91,6 @@ export default {
                 { expiresIn: '30d' }
             );
 
-            // Preparar respuesta
             const userData = {
                 id: user._id,
                 email: user.email,
