@@ -36,7 +36,9 @@ export interface IUser extends Document {
     faculty: string;
     verified: boolean;
     role: 'user' | 'admin' | 'superadmin';
+    googleId?: string;
     points: number;
+    totalScans: number;
     scannedProducts: IProduct[];
     posts: IPost[];
     redeems: mongoose.Types.ObjectId[]; // historial de canjes y en proceso
@@ -123,7 +125,17 @@ const UserSchema = new Schema<IUser>(
             enum: ['user', 'admin', 'superadmin'],
             default: 'user'
         },
+        googleId: {
+            type: String,
+            unique: true,
+            sparse: true
+        },
         points: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        totalScans: {
             type: Number,
             default: 0,
             min: 0
