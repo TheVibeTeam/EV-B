@@ -17,7 +17,7 @@ export default {
 
             const users = await UserModel
                 .find()
-                .select('username name university faculty points scannedProducts')
+                .select('username name university faculty points scannedProducts profilePicture verified')
                 .sort({ points: -1 })
                 .limit(limit);
 
@@ -29,7 +29,9 @@ export default {
                 university: user.university,
                 faculty: user.faculty,
                 points: user.points,
-                totalScans: user.scannedProducts.length
+                totalScans: user.scannedProducts.length,
+                profilePicture: user.profilePicture,
+                verified: user.verified
             }));
 
             res.json({

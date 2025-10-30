@@ -5,8 +5,8 @@ import UserModel from '../../Models/User';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 export default {
-    name: 'Get Profile',
-    path: '/earthvibe/user/profile',
+    name: 'Get Last Activity',
+    path: '/earthvibe/user/last-activity',
     method: 'get',
     category: 'earthvibe',
     example: {},
@@ -38,7 +38,7 @@ export default {
     execution: async (req: Request, res: Response) => {
         try {
             const user = (req as any).user;
-            const currentUser = await UserModel.findById(user.userId).select('-password');
+            const currentUser = await UserModel.findById(user.userId).select('scannedProducts');
 
             if (!currentUser) {
                 return res.status(404).json({
@@ -47,31 +47,32 @@ export default {
                 });
             }
 
+            // Obtener el último producto escaneado
+            if (!currentUser.scannedProducts || currentUser.scannedProducts.length === 0) {
+                return res.json({
+                    status: true,
+                    data: null,
+                    msg: 'No hay actividad reciente'
+                });
+            }
+
+            // Ordenar por fecha de escaneo (más reciente primero)
+            const sortedProducts = currentUser.scannedProducts.sort((a, b) => 
+                new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime()
+            );
+
+            const lastActivity = sortedProducts[0];
+
             res.json({
                 status: true,
                 data: {
-                    id: currentUser._id,
-                    email: currentUser.email,
-                    username: currentUser.username,
-                    name: currentUser.name,
-                    bio: currentUser.bio,
-                    profilePicture: currentUser.profilePicture,
-                    university: currentUser.university,
-                    faculty: currentUser.faculty,
-                    verified: currentUser.verified,
-                    points: currentUser.points,
-                    totalScans: currentUser.scannedProducts.length,
-                    totalPosts: currentUser.posts.length,
-                    scannedProducts: currentUser.scannedProducts.map(p => ({
-                        barcode: p.barcode,
-                        productName: p.productName,
-                        brand: p.brand,
-                        quantity: p.quantity,
-                        points: p.points,
-                        scannedAt: p.scannedAt
-                    })),
-                    posts: currentUser.posts,
-                    createdAt: currentUser.createdAt
+                    type: 'scan',
+                    location: 'Vibe Pod', // Puedes ajustar esto según tu lógica
+                    points: lastActivity.points,
+                    bottles: lastActivity.quantity ? parseInt(lastActivity.quantity) : 1,
+                    timestamp: lastActivity.scannedAt,
+                    productName: lastActivity.productName,
+                    brand: lastActivity.brand
                 }
             });
         } catch (error) {

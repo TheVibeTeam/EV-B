@@ -69,7 +69,8 @@ export default {
                 { 
                     userId: user._id, 
                     email: user.email,
-                    username: user.username
+                    username: user.username,
+                    role: user.role || 'user'
                 },
                 JWT_SECRET,
                 { expiresIn: JWT_EXPIRES_IN }
@@ -90,6 +91,7 @@ export default {
                         university: user.university,
                         faculty: user.faculty,
                         verified: user.verified,
+                        role: user.role || 'user',
                         points: user.points,
                         totalScans: user.scannedProducts.length,
                         totalPosts: user.posts.length,

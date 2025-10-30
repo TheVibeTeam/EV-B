@@ -35,9 +35,11 @@ export interface IUser extends Document {
     university: string;
     faculty: string;
     verified: boolean;
+    role: 'user' | 'admin' | 'superadmin';
     points: number;
     scannedProducts: IProduct[];
     posts: IPost[];
+    redeems: mongoose.Types.ObjectId[]; // historial de canjes y en proceso
     createdAt: Date;
     updatedAt: Date;
 }
@@ -116,13 +118,19 @@ const UserSchema = new Schema<IUser>(
             type: Boolean,
             default: false
         },
+        role: {
+            type: String,
+            enum: ['user', 'admin', 'superadmin'],
+            default: 'user'
+        },
         points: {
             type: Number,
             default: 0,
             min: 0
         },
-        scannedProducts: [ProductSchema],
-        posts: [PostSchema]
+    scannedProducts: [ProductSchema],
+    posts: [PostSchema],
+    redeems: [{ type: Schema.Types.ObjectId, ref: 'Redeem' }]
     },
     {
         timestamps: true

@@ -55,8 +55,8 @@ export default {
         });
       }
 
-      // Buscar el usuario que hace el comentario
-      const commentUser = await User.findById(userId).select('username');
+        // Buscar el usuario que hace el comentario
+        const commentUser = await User.findById(userId).select('username name profilePicture verified');
 
       if (!commentUser) {
         return res.status(404).json({
@@ -87,13 +87,16 @@ export default {
         });
       }
 
-      // Agregar el comentario
-      const newComment = {
-        userId: userId as any,
-        username: commentUser.username,
-        content: content.trim(),
-        createdAt: new Date(),
-      };
+        // Agregar el comentario
+        const newComment = {
+          userId: userId as any,
+          username: commentUser.username,
+          name: commentUser.name,
+          profilePicture: commentUser.profilePicture,
+          verified: commentUser.verified,
+          content: content.trim(),
+          createdAt: new Date(),
+        };
 
       post.comments.push(newComment);
       await userWithPost.save();

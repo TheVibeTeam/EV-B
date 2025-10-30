@@ -1,6 +1,9 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import UserModel from '../../Models/User';
+import Challenge from '../../Models/Challenge';
+import UserChallenge from '../../Models/UserChallenge';
+import Product from '../../Models/Product';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
@@ -116,44 +119,127 @@ export default {
 
             const skipped: string[] = [];
             const added: any[] = [];
+            const notFound: any[] = [];
             let total = 0;
 
+            // Verificar cada botella
             for (const bottle of bottles) {
-                const exists = user.scannedProducts.find(
+                // Verificar si la botella existe en la base de datos de productos
+                const product = await Product.findOne({ 
+                    barcode: bottle.barcode,
+                    isActive: true 
+                });
+
+                if (!product) {
+                    notFound.push({
+                        barcode: bottle.barcode,
+                        productName: bottle.productName,
+                        reason: 'Producto no encontrado en la base de datos'
+                    });
+                    continue;
+                }
+
+                // Verificar si el usuario ya escaneó este código de barras
+                const alreadyScanned = user.scannedProducts.find(
                     p => p.barcode === bottle.barcode
                 );
 
-                if (exists) {
+                if (alreadyScanned) {
                     skipped.push(bottle.barcode);
                     continue;
                 }
 
+                // Agregar la botella usando los datos del producto de la BD
                 const item = {
-                    barcode: bottle.barcode,
-                    productName: bottle.productName,
-                    brand: bottle.brand,
-                    quantity: bottle.quantity,
-                    points: bottle.points,
+                    barcode: product.barcode,
+                    productName: product.productName,
+                    brand: product.brand,
+                    quantity: product.quantity || bottle.quantity,
+                    points: product.points,
                     scannedAt: new Date()
                 };
 
                 user.scannedProducts.push(item);
                 added.push(item);
-                total += bottle.points;
+                total += product.points;
+            }
+
+            // Si no se agregó ninguna botella válida, retornar error
+            if (added.length === 0) {
+                return res.status(400).json({
+                    status: false,
+                    msg: 'Ninguna botella válida para registrar',
+                    added: 0,
+                    skipped: skipped.length,
+                    notFound: notFound.length,
+                    invalidProducts: notFound,
+                    alreadyScanned: skipped
+                });
             }
 
             user.points += total;
             await user.save();
+
+            // Actualizar progreso de retos activos
+            const now = new Date();
+            const activeChallenges = await Challenge.find({
+                isActive: true,
+                $or: [
+                    { expiresAt: { $exists: false } },
+                    { expiresAt: null },
+                    { expiresAt: { $gte: now } }
+                ]
+            });
+
+            const completedChallenges: any[] = [];
+            
+            for (const challenge of activeChallenges) {
+                let userChallenge = await UserChallenge.findOne({
+                    userId: user._id,
+                    challengeId: challenge._id
+                });
+
+                if (!userChallenge) {
+                    userChallenge = new UserChallenge({
+                        userId: user._id,
+                        challengeId: challenge._id,
+                        progress: 0,
+                        isCompleted: false,
+                        claimedReward: false
+                    });
+                }
+
+                if (!userChallenge.isCompleted) {
+                    // Incrementar progreso según el número de botellas escaneadas
+                    userChallenge.progress += added.length;
+
+                    // Verificar si se completó el reto
+                    if (userChallenge.progress >= challenge.targetValue) {
+                        userChallenge.isCompleted = true;
+                        userChallenge.completedAt = new Date();
+                        completedChallenges.push({
+                            id: challenge._id,
+                            title: challenge.title,
+                            rewardPoints: challenge.rewardPoints
+                        });
+                    }
+
+                    await userChallenge.save();
+                }
+            }
 
             res.json({
                 status: true,
                 msg: `${added.length} botella(s) registrada(s) exitosamente`,
                 added: added.length,
                 skipped: skipped.length,
-                barcodes: skipped,
-                points: total,
-                total: user.points,
-                recycled: user.scannedProducts.length
+                notFound: notFound.length,
+                invalidProducts: notFound,
+                alreadyScanned: skipped,
+                totalPoints: total,
+                userTotalPoints: user.points,
+                totalRecycled: user.scannedProducts.length,
+                completedChallenges: completedChallenges
             });
         } catch (error: any) {
             res.status(500).json({

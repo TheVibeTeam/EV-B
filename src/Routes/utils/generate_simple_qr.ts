@@ -83,6 +83,20 @@ export default {
             const authTag = cipher.getAuthTag().toString('base64');
             const qrString = `EVTEAM:${iv.toString('base64')}:${authTag}:${encrypted}`;
 
+            try {
+                const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+                decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+                let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+                decrypted += decipher.final('utf8');
+                JSON.parse(decrypted);
+            } catch (err) {
+                return res.status(400).json({
+                    status: false,
+                    msg: 'La clave no es válida para encriptar/desencriptar',
+                    error: err instanceof Error ? err.message : String(err)
+                });
+            }
+
             const buffer = await QRCode.toBuffer(qrString, {
                 errorCorrectionLevel: 'M',
                 type: 'png',
