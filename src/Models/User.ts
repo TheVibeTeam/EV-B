@@ -41,7 +41,7 @@ export interface IUser extends Document {
     totalScans: number;
     scannedProducts: IProduct[];
     posts: IPost[];
-    redeems: mongoose.Types.ObjectId[]; // historial de canjes y en proceso
+    redeems: mongoose.Types.ObjectId[];
     createdAt: Date;
     updatedAt: Date;
 }

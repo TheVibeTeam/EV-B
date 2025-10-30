@@ -59,6 +59,7 @@ export default {
                     university: currentUser.university,
                     faculty: currentUser.faculty,
                     verified: currentUser.verified,
+                    role: currentUser.role || 'user',
                     points: currentUser.points,
                     totalScans: currentUser.scannedProducts.length,
                     totalPosts: currentUser.posts.length,
