@@ -117,7 +117,7 @@ export default {
                 });
             }
 
-            const skipped: string[] = [];
+            const skipped: any[] = [];
             const added: any[] = [];
             const notFound: any[] = [];
             let total = 0;
@@ -145,7 +145,14 @@ export default {
                 );
 
                 if (alreadyScanned) {
-                    skipped.push(bottle.barcode);
+                    // La botella ya fue escaneada, no la guardamos nuevamente
+                    skipped.push({
+                        barcode: bottle.barcode,
+                        productName: product.productName,
+                        brand: product.brand,
+                        scannedAt: alreadyScanned.scannedAt,
+                        message: 'Esta botella ya fue registrada anteriormente'
+                    });
                     continue;
                 }
 
@@ -164,7 +171,24 @@ export default {
                 total += product.points;
             }
 
-            // Si no se agregó ninguna botella válida, retornar error
+            // Si hay botellas procesadas (nuevas o ya escaneadas), retornar éxito
+            if (added.length === 0 && skipped.length > 0) {
+                // Todas las botellas ya fueron escaneadas
+                return res.json({
+                    status: true,
+                    msg: 'Todas las botellas ya fueron registradas anteriormente',
+                    added: 0,
+                    skipped: skipped.length,
+                    notFound: notFound.length,
+                    invalidProducts: notFound,
+                    alreadyScanned: skipped,
+                    totalPoints: 0,
+                    userTotalPoints: user.points,
+                    totalRecycled: user.scannedProducts.length
+                });
+            }
+
+            // Si no se procesó ninguna botella válida, retornar error
             if (added.length === 0) {
                 return res.status(400).json({
                     status: false,
@@ -210,7 +234,7 @@ export default {
                 }
 
                 if (!userChallenge.isCompleted) {
-                    // Incrementar progreso según el número de botellas escaneadas
+                    // Incrementar progreso según el número de botellas nuevas escaneadas
                     userChallenge.progress += added.length;
 
                     // Verificar si se completó el reto
