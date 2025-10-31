@@ -8,7 +8,7 @@ export default {
   method: 'get',
   category: 'earthvibe',
   example: {},
-  parameter: [], // Vacío porque :postId viene de params, no query
+  parameter: [],
   premium: false,
   error: false,
   logger: true,

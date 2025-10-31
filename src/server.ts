@@ -18,6 +18,7 @@ import Create from './Utils/handler';
 import Storage from './Utils/storage';
 import MongoDB from './Config/database.mongodb';
 import SQLite from './Config/database.sqlite';
+import { initializeFirebaseAdmin } from './Utils/firebase-push';
 
 dotenv.config();
 
@@ -53,6 +54,9 @@ const run = async () => {
             needProfiling: true
         })
     ]);
+
+    // Inicializar Firebase Admin para notificaciones push
+    initializeFirebaseAdmin();
 
     morgan.token('clientIp', (req) => (req as any).clientIp);
     app.set('json spaces', 2)

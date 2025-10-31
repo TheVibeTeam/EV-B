@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import NotificationModel from '../../Models/Notification';
 import UserModel from '../../Models/User';
+import { sendPushToAll, sendPushToMultipleUsers } from '../../Utils/firebase-push';
+import logger from '../../Utils/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
@@ -121,6 +123,36 @@ export default {
                 recipientCount = specificUserIds.length;
             }
 
+            // Enviar notificaciones push
+            let pushStats = { success: 0, failed: 0 };
+            try {
+                if (recipients === 'all') {
+                    pushStats = await sendPushToAll({
+                        title,
+                        message,
+                        type,
+                        priority
+                    }, 'all');
+                } else if (recipients === 'verified') {
+                    pushStats = await sendPushToAll({
+                        title,
+                        message,
+                        type,
+                        priority
+                    }, 'verified');
+                } else if (recipients === 'specific' && specificUserIds) {
+                    pushStats = await sendPushToMultipleUsers(specificUserIds, {
+                        title,
+                        message,
+                        type,
+                        priority
+                    });
+                }
+                logger.info(`Push notifications enviadas: ${pushStats.success} exitosas, ${pushStats.failed} fallidas`);
+            } catch (pushError) {
+                logger.error('Error enviando push notifications:', pushError);
+            }
+
             res.json({
                 status: true,
                 msg: 'Notificación enviada correctamente',
@@ -134,11 +166,15 @@ export default {
                     recipientCount,
                     sentBy: notification.sentByName,
                     createdAt: notification.createdAt,
-                    expiresAt: notification.expiresAt
+                    expiresAt: notification.expiresAt,
+                    pushNotifications: {
+                        sent: pushStats.success,
+                        failed: pushStats.failed
+                    }
                 }
             });
         } catch (error) {
-            console.error('Error enviando notificación:', error);
+            logger.error('Error enviando notificación:', error);
             res.status(500).json({
                 status: false,
                 msg: 'Error en el servidor',

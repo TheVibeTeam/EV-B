@@ -39,6 +39,7 @@ export interface IUser extends Document {
     googleId?: string;
     points: number;
     totalScans: number;
+    fcmToken?: string;
     scannedProducts: IProduct[];
     posts: IPost[];
     redeems: mongoose.Types.ObjectId[];
@@ -139,6 +140,10 @@ const UserSchema = new Schema<IUser>(
             type: Number,
             default: 0,
             min: 0
+        },
+        fcmToken: {
+            type: String,
+            default: ''
         },
     scannedProducts: [ProductSchema],
     posts: [PostSchema],
