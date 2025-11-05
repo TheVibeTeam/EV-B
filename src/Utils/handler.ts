@@ -6,13 +6,15 @@ import Func from './utils';
 import express, { Request, Response, NextFunction, Router } from 'express';
 import { Server } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { ApolloServer } from 'apollo-server-express';
+import { ApolloServer, BaseContext } from '@apollo/server';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
 // @ts-ignore
 import { useServer } from 'graphql-ws/use/ws';
 import jwt from 'jsonwebtoken';
 import logger from './logger';
+import cors from 'cors';
 
 export default new class Handler {
     public router: Router = express.Router()
@@ -157,32 +159,63 @@ export default new class Handler {
 
             const schema = makeExecutableSchema({ typeDefs, resolvers });
 
-            const apolloServer = new ApolloServer({
+            const wsServer = new WebSocketServer({ server: httpServer, path: '/hybrid' });
+            const serverCleanup = useServer({ schema }, wsServer);
+
+            const apolloServer = new ApolloServer<BaseContext>({
                 schema,
-                persistedQueries: false,
-                context: ({ req }) => {
-                    const token = req.headers.authorization?.replace('Bearer ', '');
-                    let user = null;
-                    if (token) {
-                        try { user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); } 
-                        catch { logger.warn('Invalid JWT token'); }
-                    }
-                    return { req, user };
-                },
-                formatError: (error) => {
-                    logger.error({ error: error.message }, 'GraphQL Error');
-                    return error;
-                },
+                plugins: [
+                    ApolloServerPluginDrainHttpServer({ httpServer }),
+                    {
+                        async serverWillStart() {
+                            return {
+                                async drainServer() {
+                                    await serverCleanup.dispose();
+                                },
+                            };
+                        },
+                    },
+                ],
             });
 
             await apolloServer.start();
-            apolloServer.applyMiddleware({ app: app as any, path: '/hybrid', cors: false });
 
-            const wsServer = new WebSocketServer({ server: httpServer, path: '/hybrid' });
-            useServer({ schema }, wsServer);
+            app.use('/hybrid', cors(), express.json(), async (req: Request, res: Response) => {
+                const token = req.headers.authorization?.replace('Bearer ', '');
+                let user = null;
+                if (token) {
+                    try {
+                        user = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+                    }
+                    catch {
+                        logger.warn('Invalid JWT token');
+                    }
+                }
 
-            logger.info({ 
-                path: apolloServer.graphqlPath,
+                // Manual GraphQL execution
+                const { query, variables, operationName } = req.body;
+                try {
+                    const result = await apolloServer.executeOperation({
+                        query,
+                        variables,
+                        extensions: { http: { headers: req.headers } }
+                    }, {
+                        contextValue: { req, user }
+                    });
+
+                    if (result.body.kind === 'single') {
+                        res.json(result.body.singleResult);
+                    } else {
+                        res.status(400).json({ errors: [{ message: 'Incremental delivery not supported' }] });
+                    }
+                } catch (error: any) {
+                    logger.error({ error: error.message }, 'GraphQL Error');
+                    res.status(500).json({ errors: [{ message: error.message }] });
+                }
+            });
+
+            logger.info({
+                path: '/hybrid',
                 queries: Object.keys(queries).length,
                 mutations: Object.keys(mutations).length,
                 schemas: loadedSchemas.size

@@ -110,7 +110,7 @@ export default {
         },
       });
     } catch (error) {
-      Logger.error('Error en add_comment:', error);
+      Logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error en add_comment:');
       return res.status(500).json({
         status: false,
         msg: 'Error interno del servidor',

@@ -65,7 +65,7 @@ export default {
                 try {
                     await Storage.deleteFile(user.profilePicture);
                 } catch (error) {
-                    logger.warn('Could not delete old profile picture:', error);
+                    logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'Could not delete old profile picture:');
                 }
             }
 
@@ -103,7 +103,7 @@ export default {
             });
 
         } catch (error: any) {
-            logger.error('Upload profile picture error:', error);
+            logger.error({ error: error.message || String(error) }, 'Upload profile picture error:');
             return res.status(500).json({
                 success: false,
                 message: 'Error al subir la foto de perfil',

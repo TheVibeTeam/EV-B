@@ -93,7 +93,7 @@ export const sendPushToUser = async (
         logger.info(`Push notification enviada a usuario ${userId}: ${response}`);
         return true;
     } catch (error) {
-        logger.error('Error enviando push notification:', error);
+        logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error enviando push notification:');
 
         if ((error as any).code === 'messaging/invalid-registration-token' ||
             (error as any).code === 'messaging/registration-token-not-registered') {
@@ -218,7 +218,7 @@ export const sendPushToAll = async (
             failed: response.failureCount,
         };
     } catch (error) {
-        logger.error('Error enviando push notifications masivas:', error);
+        logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error enviando push notifications masivas:');
         return { success: 0, failed: 0 };
     }
 };

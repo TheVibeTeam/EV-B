@@ -91,7 +91,7 @@ export default {
         data: response,
       });
     } catch (error) {
-      Logger.error('Error en get_post:', error);
+      Logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error en get_post:');
       return res.status(500).json({
         status: false,
         msg: 'Error interno del servidor',

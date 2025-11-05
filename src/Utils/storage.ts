@@ -62,7 +62,7 @@ export default class Storage {
                 logger.info('Local storage initialized');
             }
         } catch (error) {
-            logger.error('Storage init failed:', error);
+            logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Storage init failed:');
             if (!IS_PRODUCTION && !IS_CLOUD_RUN) throw error;
         }
     }
@@ -108,7 +108,7 @@ export default class Storage {
             const ext = this.getExtensionFromMime(base64Data) || 'bin';
             return this._saveFile(buffer, userId, category, ext);
         } catch (error) {
-            logger.error('Upload base64 error:', error);
+            logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Upload base64 error:');
             throw new Error('Failed to upload file');
         }
     }
@@ -118,7 +118,7 @@ export default class Storage {
             const { userId, category = 'images', extension = 'bin' } = options;
             return this._saveFile(buffer, userId, category, extension);
         } catch (error) {
-            logger.error('Upload buffer error:', error);
+            logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Upload buffer error:');
             throw new Error('Failed to upload file');
         }
     }
@@ -186,7 +186,7 @@ export default class Storage {
             }
             return { totalFiles, categories: stats };
         } catch (error) {
-            logger.error('Storage stats error:', error);
+            logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Storage stats error:');
             return { totalFiles: 0, categories: {} };
         }
     }

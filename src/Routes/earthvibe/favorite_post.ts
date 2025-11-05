@@ -97,7 +97,7 @@ export default {
         },
       });
     } catch (error) {
-      Logger.error('Error en favorite_post:', error);
+      Logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Error en favorite_post:');
       return res.status(500).json({
         status: false,
         msg: 'Error interno del servidor',
