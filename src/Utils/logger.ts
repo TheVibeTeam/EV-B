@@ -11,6 +11,6 @@ export interface ILogger {
 }
 
 export default pino({
-    level: 'info',
+    level: 'error',
     timestamp: () => `,"time":"${new Date().toJSON()}"`
 });

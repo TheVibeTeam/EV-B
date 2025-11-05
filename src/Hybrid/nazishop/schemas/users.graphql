@@ -1,0 +1,54 @@
+type User {
+  id: ID!
+  email: String!
+  displayName: String
+  photoUrl: String
+  phoneNumber: String
+  role: UserRole!
+  isActive: Boolean!
+  createdAt: String!
+  totalPurchases: Int!
+  totalSpent: Float!
+  favoriteServices: [String!]
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+type UsersResponse {
+  users: [User!]!
+  total: Int!
+}
+
+type UserResponse {
+  success: Boolean!
+  message: String!
+  user: User
+}
+
+type AuthResponse {
+  success: Boolean!
+  message: String!
+  token: String
+  user: User
+}
+
+input UpdateUserInput {
+  displayName: String
+  phoneNumber: String
+  photoUrl: String
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  displayName: String
+  phoneNumber: String
+}

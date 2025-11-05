@@ -10,6 +10,17 @@ const resolve = path.resolve;
 export default new class Loader {
     public plugins: Record<string, any> = {}
     public sockets: Record<string, any> = {}
+    public graphql: {
+        queries: Record<string, any>,
+        mutations: Record<string, any>,
+        subscriptions: Record<string, any>,
+        types: Record<string, any>
+    } = {
+        queries: {},
+        mutations: {},
+        subscriptions: {},
+        types: {}
+    }
 
     public async router(dir: string): Promise<void> {
         const files = await this.scandir(dir);
@@ -45,6 +56,52 @@ export default new class Loader {
             }
         }
         this.sockets = Object.fromEntries(entries);
+    }
+
+    public async graphqlResolvers(dir: string): Promise<void> {
+        const files = await this.scandir(dir);
+        for (const file of files) {
+            if (file.endsWith('.ts') || file.endsWith('.js')) {
+                const name = path.basename(file).replace(/\.(ts|js)$/, '');
+                const relativePath = path.relative(dir, file);
+                const category = path.dirname(relativePath).split(path.sep)[0];
+                
+                try {
+                    const mod = await import(file);
+                    const resolver = mod.default || mod;
+                    
+                    if (resolver.type === 'query') {
+                        this.graphql.queries[name] = resolver;
+                    } else if (resolver.type === 'mutation') {
+                        this.graphql.mutations[name] = resolver;
+                    } else if (resolver.type === 'subscription') {
+                        this.graphql.subscriptions[name] = resolver;
+                    }
+                    
+                    logger.info({ file, name, type: resolver.type, category }, 'GraphQL resolver loaded successfully');
+                } catch (err: any) {
+                    logger.error({ file, error: err.message }, 'Error importing GraphQL resolver');
+                }
+            }
+        }
+    }
+
+    public async graphqlTypes(dir: string): Promise<void> {
+        const files = await this.scandir(dir);
+        const entries: [string, any][] = [];
+        for (const file of files) {
+            if (file.endsWith('.ts') || file.endsWith('.js')) {
+                const name = path.basename(file).replace(/\.(ts|js)$/, '');
+                try {
+                    const mod = await import(file);
+                    entries.push([name, mod.default || mod]);
+                    logger.info({ file, name }, 'GraphQL type loaded successfully');
+                } catch (err: any) {
+                    logger.error({ file, error: err.message }, 'Error importing GraphQL type');
+                }
+            }
+        }
+        this.graphql.types = Object.fromEntries(entries);
     }
 
     private async scandir(dir: string): Promise<string[]> {

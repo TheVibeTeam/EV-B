@@ -154,9 +154,6 @@ const UserSchema = new Schema<IUser>(
     }
 );
 
-// Índices para mejorar el rendimiento
-UserSchema.index({ email: 1 });
-UserSchema.index({ username: 1 });
 UserSchema.index({ university: 1, faculty: 1 });
 UserSchema.index({ points: -1 });
 

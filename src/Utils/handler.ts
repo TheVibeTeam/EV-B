@@ -1,9 +1,18 @@
 import path from 'path';
+import fs from 'fs';
 import Loader from './System/loader';
 import Config from './System/config';
 import Func from './utils';
 import express, { Request, Response, NextFunction, Router } from 'express';
 import { Server } from 'socket.io';
+import { Server as HTTPServer } from 'http';
+import { ApolloServer } from 'apollo-server-express';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { WebSocketServer } from 'ws';
+// @ts-ignore
+import { useServer } from 'graphql-ws/use/ws';
+import jwt from 'jsonwebtoken';
+import logger from './logger';
 
 export default new class Handler {
     public router: Router = express.Router()
@@ -103,4 +112,86 @@ export default new class Handler {
         }
     };
 
+    public async hybrid(app: express.Application, httpServer: HTTPServer): Promise<void> {
+        try {
+            const hybridDir = path.join(__dirname, '../Hybrid/nazishop');
+            await Loader.graphqlResolvers(hybridDir);
+            const { queries, mutations } = Loader.graphql;
+            const loadedSchemas = new Set<string>();
+            const schemaContents: string[] = [];
+
+            const loadSchema = (schemaFile: string) => {
+                if (!loadedSchemas.has(schemaFile)) {
+                    const schemaPath = path.join(hybridDir, 'schemas', schemaFile);
+                    if (fs.existsSync(schemaPath)) {
+                        schemaContents.push(fs.readFileSync(schemaPath, 'utf-8'));
+                        loadedSchemas.add(schemaFile);
+                        logger.info({ schema: schemaFile }, 'Hybrid schema loaded');
+                    }
+                }
+            };
+
+            Object.values(queries).forEach((q: any) => { if (q.schema) loadSchema(q.schema); });
+            Object.values(mutations).forEach((m: any) => { if (m.schema) loadSchema(m.schema); });
+
+            const queryDefs: string[] = [];
+            const mutationDefs: string[] = [];
+            Object.values(queries).forEach((q: any) => { if (q.query) queryDefs.push(q.query); });
+            Object.values(mutations).forEach((m: any) => { if (m.mutation) mutationDefs.push(m.mutation); });
+
+            const typeDefs = `
+                ${schemaContents.join('\n\n')}
+                type Query { ${queryDefs.join('\n                    ')} }
+                ${mutationDefs.length > 0 ? `type Mutation { ${mutationDefs.join('\n                    ')} }` : ''}
+            `;
+
+            const resolvers: any = { Query: {}, Mutation: {} };
+            Object.values(queries).forEach((q: any) => {
+                const queryName = q.query?.split(/[\s:(]/)[0]?.trim();
+                if (queryName) resolvers.Query[queryName] = q.resolver;
+            });
+            Object.values(mutations).forEach((m: any) => {
+                const mutationName = m.mutation?.split(/[\s:(]/)[0]?.trim();
+                if (mutationName) resolvers.Mutation[mutationName] = m.resolver;
+            });
+
+            const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+            const apolloServer = new ApolloServer({
+                schema,
+                persistedQueries: false,
+                context: ({ req }) => {
+                    const token = req.headers.authorization?.replace('Bearer ', '');
+                    let user = null;
+                    if (token) {
+                        try { user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); } 
+                        catch { logger.warn('Invalid JWT token'); }
+                    }
+                    return { req, user };
+                },
+                formatError: (error) => {
+                    logger.error({ error: error.message }, 'GraphQL Error');
+                    return error;
+                },
+            });
+
+            await apolloServer.start();
+            apolloServer.applyMiddleware({ app: app as any, path: '/hybrid', cors: false });
+
+            const wsServer = new WebSocketServer({ server: httpServer, path: '/hybrid' });
+            useServer({ schema }, wsServer);
+
+            logger.info({ 
+                path: apolloServer.graphqlPath,
+                queries: Object.keys(queries).length,
+                mutations: Object.keys(mutations).length,
+                schemas: loadedSchemas.size
+            }, 'Hybrid server (GraphQL + WebSocket) initialized');
+        } catch (err) {
+            if (err instanceof Error) {
+                logger.error({ error: err.message }, 'Failed to load Hybrid');
+                throw new Error(`Failed to load Hybrid: ${err.message}`);
+            }
+        }
+    }
 }

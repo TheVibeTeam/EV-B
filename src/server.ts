@@ -157,7 +157,10 @@ const run = async () => {
                 msg: IS_PRODUCTION ? 'Error en el servidor' : err.message
             });
         });
-    await Create.sockets(io)
+    await Create.sockets(io);
+
+    await Create.hybrid(app, server);
+    
     server.listen(PORT, '0.0.0.0' as any, () => {
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {

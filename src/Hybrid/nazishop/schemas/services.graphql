@@ -1,0 +1,67 @@
+type Service {
+  id: ID!
+  serviceId: String!
+  name: String!
+  description: String
+  category: ServiceCategory!
+  iconCode: Int
+  colorValue: Int
+  isActive: Boolean!
+  isFeatured: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  streamingPlans: [String!]
+  streamingDurations: [String!]
+  streamingPrices: [Float!]
+  streamingDevices: [String!]
+  socialFollowersPackages: [String!]
+  socialPrices: [Float!]
+  socialDeliveryTime: String
+  methodTypes: [String!]
+  methodPrices: [Float!]
+  methodInstructions: String
+}
+
+enum ServiceCategory {
+  STREAMING
+  SOCIAL_MEDIA
+  METHODS
+}
+
+type ServicesResponse {
+  services: [Service!]!
+  total: Int!
+}
+
+type ServiceResponse {
+  success: Boolean!
+  message: String!
+  service: Service
+}
+
+input CreateServiceInput {
+  name: String!
+  description: String
+  category: ServiceCategory!
+  iconCode: Int
+  colorValue: Int
+  isActive: Boolean
+  isFeatured: Boolean
+  streamingPlans: [String!]
+  streamingDurations: [String!]
+  streamingPrices: [Float!]
+  streamingDevices: [String!]
+  socialFollowersPackages: [String!]
+  socialPrices: [Float!]
+  socialDeliveryTime: String
+  methodTypes: [String!]
+  methodPrices: [Float!]
+  methodInstructions: String
+}
+
+input UpdateServiceInput {
+  name: String
+  description: String
+  isActive: Boolean
+  isFeatured: Boolean
+}

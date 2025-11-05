@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import UserModel from '../../Models/User';
 import Storage from '../../Utils/storage';
+import { emitNewPost } from '../../Utils/socket-manager';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 

@@ -10,6 +10,17 @@ interface Status {
 export default new class Config {
     public sockets: any[] = [];
     public routes: any[] = [];
+    public graphql: {
+        queries: any[],
+        mutations: any[],
+        subscriptions: any[],
+        types: any[]
+    } = {
+        queries: [],
+        mutations: [],
+        subscriptions: [],
+        types: []
+    };
     public status: Status = {
         reqGet: (req: any, params?: string[]) => {
             if (!params) return { status: true }

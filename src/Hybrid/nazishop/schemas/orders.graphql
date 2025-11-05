@@ -1,0 +1,79 @@
+type Order {
+  id: ID!
+  orderId: String!
+  userId: String!
+  userEmail: String!
+  userName: String!
+  productId: String!
+  productName: String!
+  category: ServiceCategory!
+  amount: Float!
+  status: OrderStatus!
+  createdAt: String!
+  updatedAt: String!
+  completedAt: String
+  streamingPlan: String
+  streamingDuration: String
+  streamingEmail: String
+  streamingPassword: String
+  streamingPin: String
+  streamingProfileName: String
+  socialUsername: String
+  socialFollowersCount: Int
+  socialDeliveryStatus: String
+  methodType: String
+  methodEmail: String
+  methodPassword: String
+  methodAdditionalData: String
+  paymentMethod: String
+  transactionId: String
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+type OrdersResponse {
+  orders: [Order!]!
+  total: Int!
+}
+
+type OrderResponse {
+  success: Boolean!
+  message: String!
+  order: Order
+}
+
+input CreateOrderInput {
+  productId: String!
+  category: ServiceCategory!
+  amount: Float!
+  paymentMethod: String!
+  streamingPlan: String
+  streamingDuration: String
+  streamingEmail: String
+  streamingPassword: String
+  streamingPin: String
+  streamingProfileName: String
+  socialUsername: String
+  socialFollowersCount: Int
+  methodType: String
+  methodEmail: String
+  methodPassword: String
+  methodAdditionalData: String
+}
+
+input UpdateOrderInput {
+  status: OrderStatus
+  streamingEmail: String
+  streamingPassword: String
+  streamingPin: String
+  streamingProfileName: String
+  socialDeliveryStatus: String
+  methodAdditionalData: String
+  transactionId: String
+}
