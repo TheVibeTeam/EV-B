@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import logger from '../logger';
+import GraphQLSchema from '../../../GraphQL/index';
 
 const readdir = promisify(fs.readdir);
 const stat = promisify(fs.stat);
@@ -14,12 +15,12 @@ export default new class Loader {
         queries: Record<string, any>,
         mutations: Record<string, any>,
         subscriptions: Record<string, any>,
-        types: Record<string, any>
+        schemas: string[]
     } = {
         queries: {},
         mutations: {},
         subscriptions: {},
-        types: {}
+        schemas: []
     }
 
     public async router(dir: string): Promise<void> {
@@ -59,6 +60,20 @@ export default new class Loader {
     }
 
     public async graphqlResolvers(dir: string): Promise<void> {
+        // Carga el schema generado desde GraphQL/index (importado estáticamente como Proto)
+        try {
+            const typeDefs = GraphQLSchema;
+            if (typeDefs && typeof typeDefs === 'string' && !this.graphql.schemas.includes(typeDefs)) {
+                this.graphql.schemas.push(typeDefs);
+                logger.info({ schemasCount: this.graphql.schemas.length }, 'Loaded GraphQL schema from generated module');
+            } else {
+                logger.warn({ typeofSchema: typeof typeDefs }, 'GraphQL schema is not a string');
+            }
+        } catch (err: any) {
+            logger.error({ error: err.message, stack: err.stack }, 'Error loading GraphQL schema module');
+        }
+
+        // Carga los resolvers desde el directorio Hybrid
         const files = await this.scandir(dir);
         for (const file of files) {
             if (file.endsWith('.ts') || file.endsWith('.js')) {
@@ -84,24 +99,6 @@ export default new class Loader {
                 }
             }
         }
-    }
-
-    public async graphqlTypes(dir: string): Promise<void> {
-        const files = await this.scandir(dir);
-        const entries: [string, any][] = [];
-        for (const file of files) {
-            if (file.endsWith('.ts') || file.endsWith('.js')) {
-                const name = path.basename(file).replace(/\.(ts|js)$/, '');
-                try {
-                    const mod = await import(file);
-                    entries.push([name, mod.default || mod]);
-                    logger.info({ file, name }, 'GraphQL type loaded successfully');
-                } catch (err: any) {
-                    logger.error({ file, error: err.message }, 'Error importing GraphQL type');
-                }
-            }
-        }
-        this.graphql.types = Object.fromEntries(entries);
     }
 
     private async scandir(dir: string): Promise<string[]> {

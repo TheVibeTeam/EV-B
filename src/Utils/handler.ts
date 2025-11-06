@@ -6,15 +6,14 @@ import Func from './utils';
 import express, { Request, Response, NextFunction, Router } from 'express';
 import { Server } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { ApolloServer, BaseContext } from '@apollo/server';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@as-integrations/express5';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
-// @ts-ignore
-import { useServer } from 'graphql-ws/use/ws';
+import { makeServer } from 'graphql-ws';
 import jwt from 'jsonwebtoken';
 import logger from './logger';
-import cors from 'cors';
 
 export default new class Handler {
     public router: Router = express.Router()
@@ -116,25 +115,9 @@ export default new class Handler {
 
     public async hybrid(app: express.Application, httpServer: HTTPServer): Promise<void> {
         try {
-            const hybridDir = path.join(__dirname, '../Hybrid/nazishop');
-            await Loader.graphqlResolvers(hybridDir);
-            const { queries, mutations } = Loader.graphql;
-            const loadedSchemas = new Set<string>();
-            const schemaContents: string[] = [];
-
-            const loadSchema = (schemaFile: string) => {
-                if (!loadedSchemas.has(schemaFile)) {
-                    const schemaPath = path.join(hybridDir, 'schemas', schemaFile);
-                    if (fs.existsSync(schemaPath)) {
-                        schemaContents.push(fs.readFileSync(schemaPath, 'utf-8'));
-                        loadedSchemas.add(schemaFile);
-                        logger.info({ schema: schemaFile }, 'Hybrid schema loaded');
-                    }
-                }
-            };
-
-            Object.values(queries).forEach((q: any) => { if (q.schema) loadSchema(q.schema); });
-            Object.values(mutations).forEach((m: any) => { if (m.schema) loadSchema(m.schema); });
+            await Loader.graphqlResolvers(path.join(__dirname, '../Hybrid'));
+            
+            const { queries, mutations, schemas } = Loader.graphql;
 
             const queryDefs: string[] = [];
             const mutationDefs: string[] = [];
@@ -142,7 +125,7 @@ export default new class Handler {
             Object.values(mutations).forEach((m: any) => { if (m.mutation) mutationDefs.push(m.mutation); });
 
             const typeDefs = `
-                ${schemaContents.join('\n\n')}
+                ${schemas.join('\n\n')}
                 type Query { ${queryDefs.join('\n                    ')} }
                 ${mutationDefs.length > 0 ? `type Mutation { ${mutationDefs.join('\n                    ')} }` : ''}
             `;
@@ -160,9 +143,8 @@ export default new class Handler {
             const schema = makeExecutableSchema({ typeDefs, resolvers });
 
             const wsServer = new WebSocketServer({ server: httpServer, path: '/hybrid' });
-            const serverCleanup = useServer({ schema }, wsServer);
-
-            const apolloServer = new ApolloServer<BaseContext>({
+            
+            const apolloServer = new ApolloServer({
                 schema,
                 plugins: [
                     ApolloServerPluginDrainHttpServer({ httpServer }),
@@ -170,55 +152,71 @@ export default new class Handler {
                         async serverWillStart() {
                             return {
                                 async drainServer() {
-                                    await serverCleanup.dispose();
-                                },
+                                    await new Promise(resolve => wsServer.close(resolve));
+                                }
                             };
-                        },
-                    },
-                ],
+                        }
+                    }
+                ]
             });
 
             await apolloServer.start();
-
-            app.use('/hybrid', cors(), express.json(), async (req: Request, res: Response) => {
-                const token = req.headers.authorization?.replace('Bearer ', '');
-                let user = null;
-                if (token) {
-                    try {
-                        user = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+            
+            // Apollo Server v5 con Express v5
+            app.use('/hybrid', 
+                express.json(),
+                expressMiddleware(apolloServer, {
+                    context: async ({ req }: any) => {
+                        const token = req.headers.authorization?.replace('Bearer ', '');
+                        let user = null;
+                        if (token) {
+                            try { user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); } 
+                            catch { logger.warn('Invalid JWT token'); }
+                        }
+                        return { req, user };
                     }
-                    catch {
-                        logger.warn('Invalid JWT token');
-                    }
-                }
+                })
+            );
 
-                // Manual GraphQL execution
-                const { query, variables, operationName } = req.body;
-                try {
-                    const result = await apolloServer.executeOperation({
-                        query,
-                        variables,
-                        extensions: { http: { headers: req.headers } }
-                    }, {
-                        contextValue: { req, user }
-                    });
-
-                    if (result.body.kind === 'single') {
-                        res.json(result.body.singleResult);
-                    } else {
-                        res.status(400).json({ errors: [{ message: 'Incremental delivery not supported' }] });
+            // WebSocket Server para subscriptions con graphql-ws v6
+            const wsGQLServer = makeServer({
+                schema,
+                context: (ctx: any) => {
+                    const token = ctx.connectionParams?.authorization?.toString().replace('Bearer ', '');
+                    let user = null;
+                    if (token) {
+                        try { user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); }
+                        catch { logger.warn('Invalid JWT token in WebSocket'); }
                     }
-                } catch (error: any) {
-                    logger.error({ error: error.message }, 'GraphQL Error');
-                    res.status(500).json({ errors: [{ message: error.message }] });
+                    return { user };
                 }
             });
 
-            logger.info({
+            wsServer.on('connection', (socket: any, request: any) => {
+                const closed = wsGQLServer.opened(
+                    {
+                        protocol: socket.protocol,
+                        send: (data) => socket.send(data, (err: any) => err && logger.error(err)),
+                        close: (code, reason) => socket.close(code, reason),
+                        onMessage: (cb) => socket.on('message', async (event: any) => {
+                            try {
+                                await cb(event.toString());
+                            } catch (err) {
+                                logger.error({ error: err }, 'Error processing WebSocket message');
+                                socket.close(1011, 'Internal Error');
+                            }
+                        }),
+                    },
+                    { socket, request }
+                );
+                socket.once('close', (code: number, reason: string) => closed(code, reason));
+            });
+
+            logger.info({ 
                 path: '/hybrid',
                 queries: Object.keys(queries).length,
                 mutations: Object.keys(mutations).length,
-                schemas: loadedSchemas.size
+                schemas: schemas.length
             }, 'Hybrid server (GraphQL + WebSocket) initialized');
         } catch (err) {
             if (err instanceof Error) {

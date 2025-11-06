@@ -28,6 +28,8 @@ COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 
 COPY --from=builder --chown=app:app /app/dist ./dist
 
+COPY --from=builder --chown=app:app /app/GraphQL ./GraphQL
+
 COPY --from=builder --chown=app:app /app/Proto ./Proto
 
 COPY --chown=app:app package*.json ./

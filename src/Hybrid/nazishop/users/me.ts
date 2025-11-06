@@ -8,7 +8,6 @@ export default {
     file: __filename,
     category: 'users',
     requireAuth: true,
-    schema: 'users.graphql',
     query: `me: User!`,
     resolver: async (_: any, args: any, context: any) => {
         try {

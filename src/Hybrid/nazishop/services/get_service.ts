@@ -7,7 +7,6 @@ export default {
     description: 'Get a single service by ID',
     file: __filename,
     category: 'services',
-    schema: 'services.graphql',
     query: `service(serviceId: String!): Service`,
     resolver: async (_: any, args: any) => {
         try {

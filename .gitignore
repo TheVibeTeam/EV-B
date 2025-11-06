@@ -3,10 +3,15 @@
 dist
 node_modules
 
+# Archivos generados
 Proto/database.d.ts
 Proto/database.js
+GraphQL/index.d.ts
+GraphQL/index.js
 Database
 Storage
+
+package-lock.json
 
 # Firebase Admin SDK keys - keep these out of version control
 firebase-adminsdk*.json

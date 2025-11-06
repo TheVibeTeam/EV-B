@@ -8,7 +8,6 @@ export default {
     file: __filename,
     category: 'services',
     requireAuth: true,
-    schema: 'services.graphql',
     mutation: `createService(input: CreateServiceInput!): ServiceResponse!`,
     resolver: async (_: any, args: any, context: any) => {
         try {

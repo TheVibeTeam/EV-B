@@ -9,7 +9,6 @@ export default {
     description: 'Register a new user',
     file: __filename,
     category: 'auth',
-    schema: 'users.graphql',
     mutation: `register(input: RegisterInput!): AuthResponse!`,
     resolver: async (_: any, args: any) => {
         try {

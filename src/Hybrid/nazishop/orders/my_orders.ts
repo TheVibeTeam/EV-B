@@ -8,7 +8,6 @@ export default {
     file: __filename,
     category: 'orders',
     requireAuth: true,
-    schema: 'orders.graphql',
     query: `myOrders(status: OrderStatus, limit: Int, skip: Int): OrdersResponse!`,
     resolver: async (_: any, args: any, context: any) => {
         try {

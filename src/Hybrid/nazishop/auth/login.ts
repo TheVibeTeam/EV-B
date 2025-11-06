@@ -9,7 +9,6 @@ export default {
     description: 'Login user with email and password',
     file: __filename,
     category: 'auth',
-    schema: 'users.graphql',
     mutation: `login(input: LoginInput!): AuthResponse!`,
     resolver: async (_: any, args: any) => {
         try {

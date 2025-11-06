@@ -10,7 +10,6 @@ export default {
     file: __filename,
     category: 'orders',
     requireAuth: true,
-    schema: 'orders.graphql',
     mutation: `createOrder(input: CreateOrderInput!): OrderResponse!`,
     resolver: async (_: any, args: any, context: any) => {
         try {

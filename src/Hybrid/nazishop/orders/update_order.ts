@@ -9,7 +9,6 @@ export default {
     file: __filename,
     category: 'orders',
     requireAuth: true,
-    schema: 'orders.graphql',
     mutation: `updateOrder(orderId: String!, input: UpdateOrderInput!): OrderResponse!`,
     resolver: async (_: any, args: any, context: any) => {
         try {

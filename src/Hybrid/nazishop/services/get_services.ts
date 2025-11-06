@@ -7,7 +7,6 @@ export default {
     description: 'Get all services with optional filters',
     file: __filename,
     category: 'services',
-    schema: 'services.graphql',
     query: `services(category: ServiceCategory, isActive: Boolean, limit: Int, skip: Int): ServicesResponse!`,
     resolver: async (_: any, args: any) => {
         try {
