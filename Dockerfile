@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY tsconfig.json ./
+COPY codegen.yml ./
 
 RUN npm install
 
