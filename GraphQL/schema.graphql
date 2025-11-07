@@ -203,3 +203,54 @@ input UpdateOrderInput {
   methodAdditionalData: String
   transactionId: String
 }
+
+# Admin Dashboard Stats
+type DashboardStats {
+  totalUsers: Int!
+  activeUsers: Int!
+  totalServices: Int!
+  activeServices: Int!
+  totalOrders: Int!
+  completedOrders: Int!
+  pendingOrders: Int!
+  canceledOrders: Int!
+  totalRevenue: Float!
+  totalPurchases: Int!
+  avgPurchasesPerUser: Float!
+  avgSpentPerUser: Float!
+  topServices: [TopServiceStat!]!
+  topUsers: [TopUserStat!]!
+  recentRevenue: [DailyRevenue!]!
+}
+
+type TopServiceStat {
+  productId: String!
+  purchaseCount: Int!
+  revenue: Float!
+}
+
+type TopUserStat {
+  id: ID!
+  displayName: String
+  email: String!
+  totalPurchases: Int!
+  totalSpent: Float!
+}
+
+type DailyRevenue {
+  date: String!
+  revenue: Float!
+  orders: Int!
+}
+
+# Admin Input Types
+input UpdateUserAdminInput {
+  displayName: String
+  phoneNumber: String
+  photoUrl: String
+  role: UserRole
+  isActive: Boolean
+  totalPurchases: Int
+  totalSpent: Float
+}
+
