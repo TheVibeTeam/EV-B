@@ -14,7 +14,7 @@ const readdir = promisify(fs.readdir);
 const STORAGE_DIR = path.join(process.cwd(), 'Storage');
 const UPLOADS_DIR = path.join(STORAGE_DIR, 'uploads');
 const ABSOLUTE_STORAGE_DIR = path.resolve(STORAGE_DIR);
-const CATEGORIES = ['images', 'videos', 'documents'];
+const CATEGORIES = ['images', 'videos', 'documents', 'rewards'];
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_CLOUD_RUN = process.env.K_SERVICE !== undefined;
@@ -26,7 +26,7 @@ let gcsBucket: any = null;
 
 interface UploadOptions {
     userId: string;
-    category?: 'images' | 'videos' | 'documents';
+    category?: 'images' | 'videos' | 'documents' | 'rewards';
     originalName?: string;
 }
 

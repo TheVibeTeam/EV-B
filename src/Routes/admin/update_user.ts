@@ -30,7 +30,8 @@ export default {
                 'faculty',
                 'verified',
                 'points',
-                'role'
+                'role',
+                'totalScans'
             ];
 
             // Filtrar solo campos permitidos

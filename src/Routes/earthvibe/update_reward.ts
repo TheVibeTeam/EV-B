@@ -4,9 +4,9 @@ import Storage from '../../Utils/storage';
 import { authenticate, requireAdmin, AuthRequest } from '../../Middleware/auth';
 
 export default {
-    name: 'Add Reward',
-    path: '/earthvibe/reward/add',
-    method: 'post',
+    name: 'Update Reward',
+    path: '/earthvibe/reward/update/:id',
+    method: 'put',
     category: 'earthvibe',
     example: { name: 'Ayuda en asignatura', description: '...', points: 1000, category: 'Academico', imageUrl: '...' },
     parameter: ['name', 'description', 'points', 'category', 'imageUrl'],
@@ -16,7 +16,9 @@ export default {
     requires: [authenticate, requireAdmin],
     execution: async (req: AuthRequest, res: Response) => {
         try {
+            const { id } = req.params;
             let { name, description, points, category, imageUrl } = req.body;
+
             if (!name || !description || !points || !category) {
                 return res.status(400).json({ status: false, msg: 'Faltan datos requeridos' });
             }
@@ -38,8 +40,17 @@ export default {
                 }
             }
 
-            const reward = await Reward.create({ name, description, points, category, imageUrl });
-            res.json({ status: true, msg: 'Premio creado', data: reward });
+            const updatedReward = await Reward.findByIdAndUpdate(
+                id,
+                { name, description, points, category, imageUrl },
+                { new: true }
+            );
+
+            if (!updatedReward) {
+                return res.status(404).json({ status: false, msg: 'Recompensa no encontrada' });
+            }
+
+            res.json({ status: true, msg: 'Recompensa actualizada', data: updatedReward });
         } catch (error) {
             res.status(500).json({ status: false, msg: 'Error en el servidor', error: error instanceof Error ? error.message : 'Unknown error' });
         }

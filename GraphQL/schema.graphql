@@ -243,7 +243,6 @@ type DailyRevenue {
   orders: Int!
 }
 
-# Admin Input Types
 input UpdateUserAdminInput {
   displayName: String
   phoneNumber: String

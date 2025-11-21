@@ -20,7 +20,7 @@ export interface IPost {
     content: string;
     imageUrl?: string;
     likes: mongoose.Types.ObjectId[];
-    comments: IComment[];
+    comments: mongoose.Types.DocumentArray<IComment & Document>;
     favorites: mongoose.Types.ObjectId[];
     createdAt: Date;
 }
@@ -41,7 +41,7 @@ export interface IUser extends Document {
     totalScans: number;
     fcmToken?: string;
     scannedProducts: IProduct[];
-    posts: IPost[];
+    posts: mongoose.Types.DocumentArray<IPost & Document>;
     redeems: mongoose.Types.ObjectId[];
     createdAt: Date;
     updatedAt: Date;
