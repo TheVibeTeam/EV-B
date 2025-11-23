@@ -14,6 +14,7 @@ import { WebSocketServer } from 'ws';
 import { makeServer } from 'graphql-ws';
 import jwt from 'jsonwebtoken';
 import logger from './logger';
+import { GraphQLScalarType, Kind } from 'graphql';
 
 export default new class Handler {
     public router: Router = express.Router()
