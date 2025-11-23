@@ -1,4 +1,6 @@
 # Users Schema
+scalar DateTime
+
 type User {
   id: ID!
   email: String!
