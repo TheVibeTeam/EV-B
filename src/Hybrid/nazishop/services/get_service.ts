@@ -12,9 +12,23 @@ export default {
         try {
             const { serviceId } = args;
             logger.info({ serviceId }, 'Fetching service by ID');
-            const service = await ServiceModel.findOne({ serviceId, isActive: true });
+            
+            let service = await ServiceModel.findOne({ serviceId, isActive: true });
+            
+            // Fallback: try finding by _id if not found by serviceId
+            if (!service && serviceId.match(/^[0-9a-fA-F]{24}$/)) {
+                service = await ServiceModel.findOne({ _id: serviceId, isActive: true });
+            }
+
             if (!service) throw new Error('Servicio no encontrado');
-            return service;
+            
+            const serviceObject = service.toObject();
+            return {
+                ...serviceObject,
+                id: (serviceObject._id as any).toString(),
+                createdAt: serviceObject.createdAt?.toISOString(),
+                updatedAt: serviceObject.updatedAt?.toISOString(),
+            };
         } catch (error: any) {
             logger.error({ error: error.message }, 'Error fetching service');
             throw new Error(error.message || 'Error al obtener servicio');

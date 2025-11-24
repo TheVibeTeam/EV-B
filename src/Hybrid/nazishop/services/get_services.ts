@@ -15,8 +15,19 @@ export default {
             const filter: any = {};
             if (category) filter.category = category;
             if (isActive !== undefined) filter.isActive = isActive;
-            const services = await ServiceModel.find(filter).limit(limit).skip(skip).sort({ isFeatured: -1, createdAt: -1 });
+            const servicesFromDB = await ServiceModel.find(filter).limit(limit).skip(skip).sort({ isFeatured: -1, createdAt: -1 });
             const total = await ServiceModel.countDocuments(filter);
+            
+            const services = servicesFromDB.map(service => {
+                const serviceObject = service.toObject();
+                return {
+                    ...serviceObject,
+                    id: (serviceObject._id as any).toString(),
+                    createdAt: serviceObject.createdAt?.toISOString(),
+                    updatedAt: serviceObject.updatedAt?.toISOString(),
+                };
+            });
+
             return { services, total };
         } catch (error: any) {
             logger.error({ error: error.message }, 'Error fetching services');

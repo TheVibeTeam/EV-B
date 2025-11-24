@@ -31,10 +31,19 @@ export default {
 
             await newItem.save();
 
+            const doc = newItem.toObject();
+            const item = {
+                ...doc,
+                id: (doc._id as any).toString(),
+                expiryDate: doc.expiryDate?.toISOString(),
+                createdAt: doc.createdAt?.toISOString(),
+                updatedAt: doc.updatedAt?.toISOString()
+            };
+
             return {
                 success: true,
                 message: 'Inventario agregado correctamente',
-                item: newItem
+                item
             };
         } catch (error: any) {
             logger.error({ error: error.message }, 'Error adding inventory');

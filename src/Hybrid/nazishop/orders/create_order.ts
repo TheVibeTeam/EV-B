@@ -23,7 +23,7 @@ export default {
             const service = await ServiceModel.findOne({ serviceId: input.productId });
             if (!service) throw new Error('Servicio no encontrado');
             const orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-            const newOrder = await OrderModel.create({
+            const newOrderFromDB = await OrderModel.create({
                 orderId,
                 userId,
                 userEmail: context.user.email,
@@ -47,12 +47,22 @@ export default {
                 methodPassword: input.methodPassword,
                 methodAdditionalData: input.methodAdditionalData
             });
+
             await NaziShopUserModel.findOneAndUpdate(
                 { email: context.user.email },
                 { $inc: { totalPurchases: 1 }, lastActiveTime: new Date() },
                 { upsert: true }
             );
-            return { success: true, message: 'Orden creada exitosamente', order: newOrder };
+
+            const newOrderObject = newOrderFromDB.toObject();
+            const order = {
+                ...newOrderObject,
+                id: (newOrderObject._id as any).toString(),
+                createdAt: newOrderObject.createdAt?.toISOString(),
+                updatedAt: newOrderObject.updatedAt?.toISOString(),
+            };
+
+            return { success: true, message: 'Orden creada exitosamente', order };
         } catch (error: any) {
             logger.error({ error: error.message }, 'Error creating order');
             throw new Error(error.message || 'Error al crear orden');
