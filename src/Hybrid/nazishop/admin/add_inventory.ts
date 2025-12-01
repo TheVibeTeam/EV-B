@@ -9,14 +9,14 @@ export default {
     category: 'admin',
     requireAuth: true,
     requireAdmin: true,
-    mutation: `addInventory(serviceId: String!, email: String!, password: String!, pin: String, profiles: String, expiryDate: DateTime): AddInventoryResponse!`,
+    mutation: `addInventory(serviceId: String!, email: String!, password: String!, pin: String, profileName: String, expiryDate: DateTime, plan: String, price: Float, duration: String): AddInventoryResponse!`,
     resolver: async (_: any, args: any, context: any) => {
         try {
             if (!context.user || context.user.role !== 'ADMIN') {
                 throw new Error('Acceso denegado. Solo administradores.');
             }
 
-            const { serviceId, email, password, pin, profiles, expiryDate } = args;
+            const { serviceId, email, password, pin, profileName, expiryDate, plan, price, duration } = args;
             logger.info({ serviceId, email }, 'Admin adding inventory');
 
             const newItem = new InventoryModel({
@@ -24,8 +24,11 @@ export default {
                 email,
                 password,
                 pin,
-                profiles,
+                profileName,
                 expiryDate,
+                plan,
+                price,
+                duration,
                 isAvailable: true
             });
 

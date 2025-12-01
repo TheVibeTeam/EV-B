@@ -5,8 +5,11 @@ export interface IInventory extends Document {
     email: string;
     password?: string;
     pin?: string;
-    profiles?: string;
+    profileName?: string;
     expiryDate?: Date;
+    plan?: string;
+    price?: number;
+    duration?: string;
     isAvailable: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -30,12 +33,24 @@ const InventorySchema = new Schema<IInventory>({
         type: String,
         default: null
     },
-    profiles: {
+    profileName: {
         type: String,
         default: null
     },
     expiryDate: {
         type: Date,
+        default: null
+    },
+    plan: {
+        type: String,
+        default: null
+    },
+    price: {
+        type: Number,
+        default: null
+    },
+    duration: {
+        type: String,
         default: null
     },
     isAvailable: {

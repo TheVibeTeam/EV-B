@@ -14,13 +14,13 @@ export default {
         try {
             // Si es usuario normal, solo puede ver items disponibles y no datos sensibles
             const isAdmin = context.user && context.user.role === 'ADMIN';
-            
+
             const { serviceId, isAvailable, limit = 50, skip = 0 } = args;
             logger.info({ serviceId, isAvailable, limit, skip, isAdmin }, 'Fetching inventory');
 
             const filter: any = {};
             if (serviceId) filter.serviceId = serviceId;
-            
+
             // Usuarios normales solo ven disponible
             if (!isAdmin) {
                 filter.isAvailable = true;
@@ -48,7 +48,10 @@ export default {
                             email: '***',
                             password: '***',
                             pin: '***',
-                            profiles: doc.profiles,
+                            profileName: doc.profileName,
+                            plan: doc.plan,
+                            price: doc.price,
+                            duration: doc.duration,
                             expiryDate: doc.expiryDate?.toISOString(),
                             createdAt: doc.createdAt?.toISOString(),
                             updatedAt: doc.updatedAt?.toISOString()
@@ -59,7 +62,8 @@ export default {
                         id: (doc._id as any).toString(),
                         expiryDate: doc.expiryDate?.toISOString(),
                         createdAt: doc.createdAt?.toISOString(),
-                        updatedAt: doc.updatedAt?.toISOString()
+                        updatedAt: doc.updatedAt?.toISOString(),
+                        profileName: doc.profileName || (doc as any).profiles
                     };
                 }),
                 total
