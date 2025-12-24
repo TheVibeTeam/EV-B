@@ -1,4 +1,4 @@
-import Inventory from '../../../Models/Inventory';
+import Inventory from '../models/Inventory';
 
 export default {
     name: 'Update Inventory',

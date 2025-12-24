@@ -91,6 +91,9 @@ type Service {
   methodInstructions: String
 }
 
+# Nota: Los precios se devuelven en USD por defecto
+# Usa el parámetro 'currency' en queries para convertir
+
 enum ServiceCategory {
   STREAMING
   SOCIAL_MEDIA
@@ -146,6 +149,9 @@ type Order {
   productName: String!
   category: ServiceCategory!
   amount: Float!
+  currency: String
+  amountUSD: Float
+  exchangeRate: Float
   status: OrderStatus!
   createdAt: String!
   updatedAt: String!
@@ -190,6 +196,7 @@ input CreateOrderInput {
   productId: String!
   category: ServiceCategory!
   amount: Float!
+  currency: String
   paymentMethod: String!
   streamingPlan: String
   streamingDuration: String
@@ -294,7 +301,68 @@ type InventoryResponse {
   total: Int!
 }
 
+# Currency Rate Schema
+type CurrencyRate {
+  id: ID!
+  code: String!          # MXN, COP, USD, EUR, etc.
+  name: String!          # Peso Mexicano, Peso Colombiano, etc.
+  rate: Float!           # Tasa: 1 USD = X moneda
+  isActive: Boolean!
+  lastUpdate: String
+  updatedBy: String
+}
 
+type CurrencyRatesResponse {
+  rates: [CurrencyRate!]!
+}
+
+type UpdateCurrencyRateResponse {
+  success: Boolean!
+  message: String!
+  rate: CurrencyRate
+}
+
+type ConvertCurrencyResponse {
+  amount: Float!
+  convertedAmount: Float!
+  from: String!
+  to: String!
+  rate: Float!
+}
+
+type Query {
+  # Service queries
+  service(serviceId: String!, currency: String): Service
+  services(category: ServiceCategory, search: String, limit: Int, offset: Int): ServicesResponse!
+  
+  # Inventory queries
+  inventory(serviceId: String!): [InventoryItem!]!
+  
+  # Orders queries
+  getUserOrders: UserOrdersResponse!
+  
+  # Currency queries
+  currencyRates: CurrencyRatesResponse!
+  convertCurrency(amount: Float!, from: String!, to: String!): ConvertCurrencyResponse!
+}
+
+type UserOrdersResponse {
+  orders: [Order!]!
+  total: Int!
+}
+
+type Inventory {
+  id: ID!
+  serviceId: String!
+  email: String!
+  password: String
+  pin: String
+  profileName: String
+  plan: String
+  price: Float
+  duration: String
+  isAvailable: Boolean!
+}
 
 type Mutation {
   addInventory(
@@ -323,6 +391,11 @@ type Mutation {
   ): UpdateInventoryPayload!
 
   deleteInventory(inventoryId: String!): DeleteInventoryPayload!
+  
+  # Currency mutations
+  addCurrency(code: String!, name: String!, rate: Float!): UpdateCurrencyRateResponse!
+  updateCurrencyRate(code: String!, rate: Float!): UpdateCurrencyRateResponse!
+  toggleCurrencyActive(code: String!, isActive: Boolean!): UpdateCurrencyRateResponse!
 }
 
 input UpdateInventoryInput {

@@ -1,5 +1,5 @@
 import logger from '../../../Utils/logger';
-import InventoryModel from '../../../Models/Inventory';
+import InventoryModel from '../models/Inventory';
 
 export default {
     name: 'Get Inventory',

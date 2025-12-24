@@ -30,7 +30,7 @@ const IS_CLOUD_RUN = process.env.K_SERVICE !== undefined;
 
 const origins = IS_PRODUCTION
     ? [
-        process.env.FRONTEND_URL, 
+        process.env.FRONTEND_URL,
         process.env.CLOUD_RUN_URL,
         /^https:\/\/.*\.run\.app$/,
         /^http:\/\/localhost:\d+$/
@@ -55,7 +55,6 @@ const run = async () => {
         })
     ]);
 
-    // Inicializar Firebase Admin para notificaciones push
     initializeFirebaseAdmin();
 
     morgan.token('clientIp', (req) => (req as any).clientIp);
@@ -160,7 +159,7 @@ const run = async () => {
     await Create.sockets(io);
 
     await Create.hybrid(app, server);
-    
+
     server.listen(PORT, '0.0.0.0' as any, () => {
         if (!IS_PRODUCTION) {
             CFonts.say('Web Server', {

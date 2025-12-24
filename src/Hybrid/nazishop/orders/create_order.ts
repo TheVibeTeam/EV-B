@@ -2,6 +2,21 @@ import logger from '../../../Utils/logger';
 import OrderModel from '../models/Order';
 import ServiceModel from '../models/Service';
 import NaziShopUserModel from '../models/NaziShopUser';
+import CurrencyRateModel from '../models/CurrencyRate';
+
+// Helper inline para conversión
+async function convertToUSD(amount: number, currency: string): Promise<{ amountUSD: number; rate: number }> {
+    if (currency === 'USD') return { amountUSD: amount, rate: 1 };
+
+    const DEFAULT_RATES = { MXN: 17.5, COP: 4200 };
+    const dbRate = await CurrencyRateModel.findOne({ currency });
+    const rate = dbRate?.rate || DEFAULT_RATES[currency as keyof typeof DEFAULT_RATES] || 1;
+
+    return {
+        amountUSD: amount / rate,
+        rate,
+    };
+}
 
 export default {
     name: 'Create Order',
@@ -16,12 +31,18 @@ export default {
             if (!context.user) throw new Error('No autorizado');
             const { input } = args;
             const userId = context.user.id;
-            logger.info({ userId, productId: input.productId }, 'Creating order');
+
             if (!input.productId || !input.amount || !input.paymentMethod) {
                 throw new Error('Campos requeridos: productId, amount, paymentMethod');
             }
+
             const service = await ServiceModel.findOne({ serviceId: input.productId });
             if (!service) throw new Error('Servicio no encontrado');
+
+            // Convertir a USD si es necesario
+            const currency = input.currency || 'USD';
+            const { amountUSD, rate } = await convertToUSD(input.amount, currency);
+
             const orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
             const newOrderFromDB = await OrderModel.create({
                 orderId,
@@ -32,6 +53,9 @@ export default {
                 productName: service.name,
                 category: input.category,
                 amount: input.amount,
+                currency,
+                amountUSD,
+                exchangeRate: rate,
                 status: 'PENDING',
                 paymentMethod: input.paymentMethod,
                 streamingPlan: input.streamingPlan,
@@ -45,7 +69,7 @@ export default {
                 methodType: input.methodType,
                 methodEmail: input.methodEmail,
                 methodPassword: input.methodPassword,
-                methodAdditionalData: input.methodAdditionalData
+                methodAdditionalData: input.methodAdditionalData,
             });
 
             await NaziShopUserModel.findOneAndUpdate(
@@ -67,5 +91,5 @@ export default {
             logger.error({ error: error.message }, 'Error creating order');
             throw new Error(error.message || 'Error al crear orden');
         }
-    }
+    },
 };

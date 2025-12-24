@@ -21,7 +21,7 @@ export default {
             const total = await ServiceModel.countDocuments(filter);
 
             // Import InventoryModel dynamically to avoid circular dependencies if any
-            const InventoryModel = require('../../../Models/Inventory').default;
+            const InventoryModel = require('../models/Inventory').default;
 
             const services = await Promise.all(servicesFromDB.map(async (service) => {
                 const serviceObject = service.toObject();
