@@ -336,7 +336,7 @@ type Query {
   services(category: ServiceCategory, search: String, limit: Int, offset: Int): ServicesResponse!
   
   # Inventory queries
-  inventory(serviceId: String!): [InventoryItem!]!
+  inventory(serviceId: String!): InventoryResponse!
   
   # Orders queries
   getUserOrders: UserOrdersResponse!
