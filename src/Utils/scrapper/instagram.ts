@@ -32,9 +32,16 @@ export default class Instagram {
         this.client = wrapper(axios.create({
             jar: this.jar,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
                 'Accept': '*/*',
-                'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+                'Accept-Language': 'es-ES,es;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'sec-ch-ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site'
             }
         }));
     }
@@ -46,7 +53,7 @@ export default class Instagram {
         $('ul.download-box li').each((index, element) => {
             const thumb = $(element).find('.download-items__thumb img').attr('src');
             const options: Option[] = [];
-            const downloadLink = $(element).find('.download-items__btn a').attr('href');
+            const downloadLink = $(element).find('.download-items__btn:not(.dl-thumb) a').attr('href');
 
             $(element).find('.photo-option select option').each((i, opt) => {
                 const res = $(opt).text();
@@ -56,11 +63,22 @@ export default class Instagram {
                 }
             });
 
-            results.push({
-                thumb,
-                options,
-                download: downloadLink
+            // Also check for direct video download button
+            $(element).find('.download-items__btn a').each((i, link) => {
+                const href = $(link).attr('href');
+                const text = $(link).text().trim();
+                if (href && text && !options.some(o => o.url === href)) {
+                    options.push({ res: text || 'Download', url: href });
+                }
             });
+
+            if (thumb || options.length > 0 || downloadLink) {
+                results.push({
+                    thumb,
+                    options,
+                    download: downloadLink
+                });
+            }
         });
 
         return results;
@@ -76,7 +94,13 @@ export default class Instagram {
                 const verifyResponse = await this.client.post(
                     `${this.baseUrl}/api/userverify`,
                     formDataVerify,
-                    { headers: formDataVerify.getHeaders() }
+                    {
+                        headers: {
+                            ...formDataVerify.getHeaders(),
+                            'origin': this.baseUrl,
+                            'referer': `${this.baseUrl}/`
+                        }
+                    }
                 );
 
                 const token = verifyResponse.data.token;
@@ -84,11 +108,11 @@ export default class Instagram {
                     return reject(new Error('Failed to get verification token'));
                 }
 
-                // Step 2: Search for media
+                // Step 2: Search for media with exact headers from DevTools
                 const formDataSearch = new FormData();
                 formDataSearch.append('q', url);
                 formDataSearch.append('t', 'media');
-                formDataSearch.append('lang', 'id');
+                formDataSearch.append('lang', 'es');
                 formDataSearch.append('v', 'v2');
                 formDataSearch.append('cftoken', token);
 
@@ -101,21 +125,27 @@ export default class Instagram {
                             'authority': 'v3.savevid.net',
                             'origin': this.baseUrl,
                             'referer': `${this.baseUrl}/`,
-                            'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132"',
-                            'sec-ch-ua-mobile': '?1',
-                            'sec-ch-ua-platform': '"Android"',
-                            'sec-fetch-dest': 'empty',
-                            'sec-fetch-mode': 'cors',
-                            'sec-fetch-site': 'same-site'
+                            'priority': 'u=1, i'
                         }
                     }
                 );
 
+                if (!searchResponse.data || !searchResponse.data.data) {
+                    return reject(new Error('No data returned from API'));
+                }
+
                 const media = this.extractData(searchResponse.data.data);
+
+                if (media.length === 0) {
+                    return reject(new Error('No media found. The post may be private or unavailable.'));
+                }
 
                 resolve({ media });
             } catch (error: any) {
-                reject(new Error(error.response?.data || error.message));
+                const errorMsg = error.response?.data?.error ||
+                    error.response?.data?.message ||
+                    error.message;
+                reject(new Error(errorMsg || 'Failed to download Instagram media'));
             }
         });
     }
